@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
     Shuffle, Users, ArrowRight, Zap,
     Shield, Globe, Sparkles, RefreshCw,
-    UserCheck, Venus, Mars, HelpCircle
+    UserCircle, TrendingUp, TrendingDown, HelpCircle
 } from 'lucide-react';
 import { generateAvatar, AVATAR_SEEDS } from '../utils/helpers';
 
@@ -89,8 +89,8 @@ const Home = () => {
                                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 text-center md:text-left pl-1">Identify as</p>
                                 <div className="grid grid-cols-3 gap-3">
                                     {[
-                                        { id: 'male', icon: Mars, color: 'bg-blue-600', text: 'Male' },
-                                        { id: 'female', icon: Venus, color: 'bg-pink-600', text: 'Female' },
+                                        { id: 'male', icon: TrendingUp, color: 'bg-blue-600', text: 'Male ♂' },
+                                        { id: 'female', icon: TrendingDown, color: 'bg-pink-600', text: 'Female ♀' },
                                         { id: 'non-binary', icon: HelpCircle, color: 'bg-gray-700', text: 'Secret' }
                                     ].map((g) => (
                                         <button

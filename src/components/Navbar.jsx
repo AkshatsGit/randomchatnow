@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     Home, MessageSquare, Users, User, LogOut,
-    RefreshCw, Sparkles, LogIn, Venus, Mars, HelpCircle
+    RefreshCw, Sparkles, LogIn, HelpCircle
 } from 'lucide-react';
 
 const Navbar = () => {
@@ -36,7 +36,7 @@ const Navbar = () => {
                     <div className="hidden sm:block">
                         <div className="text-xs font-black text-white leading-none mb-1 flex items-center gap-1">
                             {profile?.displayName}
-                            {profile?.gender === 'female' ? <Venus className="w-3 h-3 text-pink-500" /> : profile?.gender === 'male' ? <Mars className="w-3 h-3 text-blue-500" /> : null}
+                            {profile?.gender === 'female' ? <span className="text-pink-500">♀</span> : profile?.gender === 'male' ? <span className="text-blue-500">♂</span> : null}
                         </div>
                         <div className="text-[9px] font-mono text-gray-500 font-bold tracking-tighter uppercase">UC-{profile?.customId}</div>
                     </div>

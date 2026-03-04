@@ -8,7 +8,7 @@ import {
 import {
     Send, LogOut, Loader2, DollarSign, RefreshCw,
     MessageSquare, ChevronRight, User, ShieldAlert,
-    Timer, UserCheck, Heart, Zap, Venus, Mars, HelpCircle
+    Timer, UserCheck, Heart, Zap, HelpCircle
 } from 'lucide-react';
 import { processPayment } from '../utils/helpers';
 
@@ -299,8 +299,8 @@ const Chat1on1 = () => {
                                 <div className="absolute top-0 left-0 w-full h-1 bg-purple-500/20 group-hover:bg-white/20" />
                                 <div className="relative">
                                     <img src={c.photo} className="w-32 h-32 rounded-[2rem] bg-gray-950 border-4 border-gray-800 shadow-xl" />
-                                    <div className={`absolute -bottom-2 -right-2 p-2 rounded-xl shadow-xl ${c.gender === 'female' ? 'bg-pink-500' : c.gender === 'male' ? 'bg-blue-500' : 'bg-gray-600'}`}>
-                                        {c.gender === 'female' ? <Venus className="w-4 h-4 text-white" /> : c.gender === 'male' ? <Mars className="w-4 h-4 text-white" /> : <HelpCircle className="w-4 h-4 text-white" />}
+                                    <div className={`absolute -bottom-2 -right-2 p-2 rounded-xl shadow-xl flex items-center justify-center ${c.gender === 'female' ? 'bg-pink-500' : c.gender === 'male' ? 'bg-blue-500' : 'bg-gray-600'}`}>
+                                        <span className="text-white text-xs font-bold">{c.gender === 'female' ? '♀' : c.gender === 'male' ? '♂' : '?'}</span>
                                     </div>
                                 </div>
                                 <div className="space-y-1">
@@ -327,7 +327,7 @@ const Chat1on1 = () => {
                     <div>
                         <h2 className="font-black text-lg flex items-center gap-2">
                             {partner?.name || 'Stranger'}
-                            {partner?.gender === 'female' ? <Venus className="w-3 h-3 text-pink-500" /> : partner?.gender === 'male' ? <Mars className="w-3 h-3 text-blue-500" /> : null}
+                            {partner?.gender === 'female' ? <span className="text-pink-500">♀</span> : partner?.gender === 'male' ? <span className="text-blue-500">♂</span> : null}
                         </h2>
                         <span className={`text-[10px] uppercase font-bold tracking-widest ${partner?.status === 'online' ? 'text-green-500' : 'text-red-500'}`}>{partner?.status || 'Searching'}</span>
                     </div>
