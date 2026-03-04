@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { rtdb, ref, push, set, onValue, update, remove, onDisconnect } from '../services/firebase';
-import { Send, LogOut, Loader2, DollarSign, RefreshCw } from 'lucide-react';
+import { Send, LogOut, Loader2, DollarSign, RefreshCw, MessageSquare } from 'lucide-react';
 import { processPayment } from '../utils/helpers';
 
 const Chat1on1 = () => {
@@ -53,42 +53,38 @@ const Chat1on1 = () => {
         set(myQueueRef, queueData);
 
         // Listen for match
-        const matchListener = onValue(myQueueRef, (snapshot) => {
+        const unsub = onValue(myQueueRef, (snapshot) => {
             const data = snapshot.val();
-            if (data && data.matchedWith) {
+            if (data && data.matchedWith && data.roomId) {
                 // Matched!
                 setChatRoomId(data.roomId);
                 setStatus('chatting');
                 setupChatRoom(data.roomId);
                 // Clean up queue
                 remove(myQueueRef);
+                unsub(); // unsubscribe since we are matched
             }
         });
 
-        // Background worker will match us, but let's implement naive matching here for pure client-side prototype
-        const allQueueListener = onValue(ref(rtdb, 'queue/1on1'), (snapshot) => {
+        // Scan the queue to see if there is a waiting partner
+        get(ref(rtdb, 'queue/1on1')).then((snapshot) => {
             const queue = snapshot.val();
-            if (queue && status === 'finding') {
+            if (queue) {
+                // Find someone who is not me, and not already matched
                 for (const potentialPartnerId in queue) {
-                    if (potentialPartnerId !== profile.customId) {
-                        const potentialPartner = queue[potentialPartnerId];
+                    if (potentialPartnerId !== profile.customId && !queue[potentialPartnerId].matchedWith) {
+                        // Create a unique room ID
+                        const newRoomId = `room_${Math.random().toString(36).substr(2, 9)}_${Date.now()}`;
 
-                        // Very naive match execution (race condition prone, but works for demo)
-                        // In a real app, use Firebase Cloud Functions
-
-                        // Create room
-                        const newRoomId = `${profile.customId}_${potentialPartnerId}_${Date.now()}`;
-
-                        // Set match on both queue profiles to alert them
+                        // Trigger the match for both clients!
                         update(ref(rtdb, `queue/1on1/${profile.customId}`), { matchedWith: potentialPartnerId, roomId: newRoomId });
                         update(ref(rtdb, `queue/1on1/${potentialPartnerId}`), { matchedWith: profile.customId, roomId: newRoomId });
 
-                        break; // matched
+                        break;
                     }
                 }
             }
-        }, { onlyOnce: true }); // Just read once when joining to see if anyone is waiting
-
+        });
     };
 
     const handlePremiumJoin = async () => {
