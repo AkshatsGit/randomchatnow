@@ -1,7 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { rtdb, ref, push, set, onValue, onChildAdded, update, remove, onDisconnect, get } from '../services/firebase';
-import { Send, LogOut, RefreshCw, MessageSquare, ChevronRight, Heart, Zap, Timer, Lock, Crown, Check, X, Sparkles } from 'lucide-react';
+import {
+    rtdb, ref, push, set, onValue, onChildAdded, update, remove, onDisconnect, get
+} from '../services/firebase';
+import { onChildChanged } from 'firebase/database';
+import {
+    Send, LogOut, RefreshCw, MessageSquare,
+    ChevronRight, Heart, Zap, Timer, Lock,
+    Crown, Check, X, Sparkles, Trash2
+} from 'lucide-react';
 import { generateAvatar } from '../utils/helpers';
 
 const PREMIUM_CODE = 'AKSHAT';
@@ -27,7 +34,7 @@ const PremiumModal = ({ onClose, onUnlock }) => {
                     <p className="text-gray-500 text-xs leading-relaxed">Pick from <span className="text-purple-400 font-bold">3 live people</span>. Opposite gender first.</p>
                 </div>
                 <a href="#" className="block w-full py-4 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-xl font-black text-center text-black text-sm uppercase tracking-widest">⚡ Buy Premium — ₹10</a>
-                <div className="flex items-center gap-3"><div className="flex-1 h-px bg-gray-800" /><span className="text-[9px] text-gray-600 font-black uppercase tracking-widest whitespace-nowrap">or enter code</span><div className="flex-1 h-px bg-gray-800" /></div>
+                <div className="flex items-center gap-3"><div className="flex-1 h-px bg-gray-800" /><span className="text-[9px] text-gray-600 font-black uppercase whitespace-nowrap">or enter code</span><div className="flex-1 h-px bg-gray-800" /></div>
                 <form onSubmit={submit} className="space-y-3">
                     <div className="relative">
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
@@ -36,7 +43,7 @@ const PremiumModal = ({ onClose, onUnlock }) => {
                     </div>
                     {err && <p className="text-red-500 text-xs text-center font-bold">{err}</p>}
                     {ok && <p className="text-green-500 text-xs text-center font-bold flex items-center justify-center gap-1"><Check className="w-3 h-3" />Unlocked!</p>}
-                    <button type="submit" disabled={!code.trim() || ok} className="w-full py-3.5 bg-purple-600 hover:bg-purple-500 rounded-xl font-black uppercase tracking-widest text-sm transition-all disabled:opacity-40 active:scale-95">
+                    <button type="submit" disabled={!code.trim() || ok} className="w-full py-3.5 bg-purple-600 hover:bg-purple-500 rounded-xl font-black uppercase text-sm transition-all disabled:opacity-40 active:scale-95">
                         {ok ? '✓ Unlocked!' : 'Activate'}
                     </button>
                 </form>
@@ -50,7 +57,8 @@ export default function Chat1on1() {
     const { profile } = useAuth();
 
     const [status, setStatus] = useState('idle');
-    const [chatRoomId, setChatRoomId] = useState(null);
+    // chatState carries roomId + uid TOGETHER — atomically set, so useEffect always has both
+    const [chatState, setChatState] = useState(null); // { roomId, uid }
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState('');
     const [partner, setPartner] = useState(null);
@@ -61,25 +69,21 @@ export default function Chat1on1() {
     const [scanError, setScanError] = useState('');
 
     const endRef = useRef(null);
-    const myIdRef = useRef(null); // always set BEFORE setChatRoomId / enterRoom
+    // roomIdRef only used for sendMessage / doExit (synchronous operations)
     const roomIdRef = useRef(null);
+    const queueMyIdRef = useRef(null); // uid used when we're in the queue
     const queueUnsubRef = useRef(null);
     const timerRef = useRef(null);
     const isActiveRef = useRef(false);
 
-    // Auto-scroll on new messages
     useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-    // ── Room effect: driven by chatRoomId state. React auto-cleans on exit. ──
-    // IMPORTANT: only reads refs (myIdRef) — never reads 'profile' to avoid stale closure.
+    // ── Room effect: chatState = { roomId, uid } bundled atomically ──
+    // Both values guaranteed fresh — no stale ref or stale closure issue
     useEffect(() => {
-        const roomId = chatRoomId;
-        const uid = myIdRef.current;
-        if (!roomId || !uid) {
-            console.log('[Room effect] skipped — roomId:', roomId, 'uid:', uid);
-            return;
-        }
-        console.log('[Room effect] setting up listeners for room:', roomId, 'uid:', uid);
+        if (!chatState) return;
+        const { roomId, uid } = chatState;
+        console.log('[Room effect] uid:', uid, 'room:', roomId);
 
         // Register as member
         const myMemberRef = ref(rtdb, `chats/${roomId}/members/${uid}`);
@@ -89,15 +93,15 @@ export default function Chat1on1() {
             photo: profile?.photoURL || generateAvatar(uid),
             gender: profile?.gender || 'unknown',
             joinedAt: Date.now()
-        }).catch(e => console.error('[Room effect] set member failed:', e));
+        }).catch(() => { });
         onDisconnect(myMemberRef).update({ status: 'offline' });
 
         // System connected message
         push(ref(rtdb, `chats/${roomId}/messages`), {
             type: 'system', text: '🔗 Connected! Say hello 👋', ts: Date.now()
-        }).catch(e => console.error('[Room effect] push system msg failed:', e));
+        }).catch(() => { });
 
-        // Member listener (who is in the room)
+        // Member listener
         const memUnsub = onValue(ref(rtdb, `chats/${roomId}/members`), snap => {
             if (!snap.exists()) return;
             Object.entries(snap.val()).forEach(([id, data]) => {
@@ -105,60 +109,51 @@ export default function Chat1on1() {
             });
         });
 
-        // Message listener — use onChildAdded so messages APPEND to array
-        // This is the correct Firebase pattern for chat; it never clears existing messages
-        const msgUnsub = onChildAdded(ref(rtdb, `chats/${roomId}/messages`), child => {
+        // New message listener — onChildAdded appends, never replaces
+        const msgRef = ref(rtdb, `chats/${roomId}/messages`);
+        const newMsgUnsub = onChildAdded(msgRef, child => {
             const msg = { id: child.key, ...child.val() };
-            console.log('[msg onChildAdded] new msg:', msg.type || 'chat', msg.text?.slice(0, 20));
             setMessages(prev => {
-                // avoid duplicates
                 if (prev.some(m => m.id === msg.id)) return prev;
-                const next = [...prev, msg];
-                return next.length > MAX_MSGS ? next.slice(-MAX_MSGS) : next;
+                return [...prev, msg].slice(-MAX_MSGS);
             });
         });
 
-        return () => {
-            console.log('[Room effect] cleanup for room:', roomId);
-            memUnsub();
-            msgUnsub();
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [chatRoomId]);
+        // Edit/delete listener — onChildChanged updates existing messages in place
+        const editUnsub = onChildChanged(msgRef, child => {
+            const updated = { id: child.key, ...child.val() };
+            setMessages(prev => prev.map(m => m.id === updated.id ? updated : m));
+        });
 
-    // Unmount: stop everything
+        return () => { memUnsub(); newMsgUnsub(); editUnsub(); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chatState]);
+
+    // Unmount cleanup
     useEffect(() => {
         return () => {
             isActiveRef.current = false;
             if (queueUnsubRef.current) { queueUnsubRef.current(); queueUnsubRef.current = null; }
             if (timerRef.current) clearInterval(timerRef.current);
-            if (myIdRef.current) remove(ref(rtdb, `queue/1on1/${myIdRef.current}`)).catch(() => { });
+            if (queueMyIdRef.current) remove(ref(rtdb, `queue/1on1/${queueMyIdRef.current}`)).catch(() => { });
         };
     }, []);
 
-    // ── Stop just the queue listener + timer (not the room) ──
     const stopQueue = () => {
         if (queueUnsubRef.current) { queueUnsubRef.current(); queueUnsubRef.current = null; }
         if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-        if (myIdRef.current) { remove(ref(rtdb, `queue/1on1/${myIdRef.current}`)).catch(() => { }); }
+        if (queueMyIdRef.current) { remove(ref(rtdb, `queue/1on1/${queueMyIdRef.current}`)).catch(() => { }); queueMyIdRef.current = null; }
     };
 
-    // ─────────────────────────────────────────────────────────────────
-    // STANDARD SEARCH
-    // ─────────────────────────────────────────────────────────────────
+    // ─── STANDARD SEARCH ────────────────────────────────────────────────────────
     const startStandardSearch = () => {
         const uid = profile?.customId;
-        console.log('[startStandardSearch] uid:', uid);
-        if (!uid) { console.error('No uid — profile not ready'); return; }
-
+        if (!uid) return;
         stopQueue();
         isActiveRef.current = true;
-        myIdRef.current = uid;  // MUST be set before enterRoom
+        queueMyIdRef.current = uid;
         setStatus('finding');
-        setPartner(null);
-        setMessages([]);
-        setChoices([]);
-        setScanError('');
+        setPartner(null); setMessages([]); setChoices([]); setScanError('');
 
         const qRef = ref(rtdb, `queue/1on1/${uid}`);
         onDisconnect(qRef).remove();
@@ -172,71 +167,54 @@ export default function Chat1on1() {
         }).then(() => {
             if (!isActiveRef.current) return;
 
-            // Watch queue — fires on every change, waits as long as needed
             queueUnsubRef.current = onValue(ref(rtdb, 'queue/1on1'), snap => {
                 if (!isActiveRef.current) return;
                 if (!snap.exists()) return;
-
                 const queue = snap.val();
                 const me = queue[uid];
                 if (!me) return;
 
-                // Someone matched me → enter room
+                // Matched — enter room
                 if (me.roomId) {
                     isActiveRef.current = false;
                     const rid = me.roomId;
                     if (queueUnsubRef.current) { queueUnsubRef.current(); queueUnsubRef.current = null; }
                     remove(qRef).catch(() => { });
-                    enterRoom(rid);
+                    enterRoom(rid, uid);
                     return;
                 }
 
-                // Am I the oldest user in queue? Only then do I initiate match.
-                const others = Object.entries(queue).filter(([id, e]) =>
-                    id !== uid && !e.roomId
-                );
+                // I'm the oldest — initiate match
+                const others = Object.entries(queue).filter(([id, e]) => id !== uid && !e.roomId);
                 if (!others.length) return;
+                const amOldest = others.every(([oid, oe]) => me.ts < oe.ts || (me.ts === oe.ts && uid < oid));
+                if (!amOldest) return;
 
-                const myTs = me.ts;
-                const amOldest = others.every(([oid, oe]) =>
-                    myTs < oe.ts || (myTs === oe.ts && uid < oid)
-                );
-                if (!amOldest) return; // wait for the older user to match me
-
-                // Match with newest waiter
                 others.sort(([, a], [, b]) => b.ts - a.ts);
                 const [partnerId] = others[0];
                 const roomId = `room_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-
                 isActiveRef.current = false;
+
                 update(ref(rtdb, 'queue/1on1'), {
                     [`${uid}/roomId`]: roomId,
                     [`${partnerId}/roomId`]: roomId,
                 }).then(() => {
                     if (queueUnsubRef.current) { queueUnsubRef.current(); queueUnsubRef.current = null; }
                     remove(qRef).catch(() => { });
-                    enterRoom(roomId);
-                }).catch(() => { isActiveRef.current = true; }); // retry
+                    enterRoom(roomId, uid);
+                }).catch(() => { isActiveRef.current = true; });
             });
         }).catch(() => setStatus('idle'));
     };
 
-    // ─────────────────────────────────────────────────────────────────
-    // PREMIUM SCAN (snapshot only — never joins queue)
-    // ─────────────────────────────────────────────────────────────────
+    // ─── PREMIUM SCAN ───────────────────────────────────────────────────────────
     const startPremiumScan = async () => {
-        const uid = profile?.customId;
-        console.log('[startPremiumScan] uid:', uid);
         stopQueue();
-        myIdRef.current = uid || null;
-        setScanError('');
-        setStatus('finding');
-        setChoices([]);
-
+        setScanError(''); setStatus('finding'); setChoices([]);
         try {
             const snap = await get(ref(rtdb, 'queue/1on1'));
-            if (!snap.exists()) { setScanError('No one online right now. Try Standard Find or wait.'); setStatus('idle'); return; }
-
+            const uid = profile?.customId;
+            if (!snap.exists()) { setScanError('No one online. Try Standard Find.'); setStatus('idle'); return; }
             const queue = snap.val();
             const candidates = Object.entries(queue)
                 .filter(([id, e]) => id !== uid && !e.roomId)
@@ -247,13 +225,11 @@ export default function Chat1on1() {
                     return a.ts - b.ts;
                 })
                 .slice(0, 3).map(([, v]) => v);
-
-            console.log('[startPremiumScan] candidates found:', candidates.length);
-            if (!candidates.length) { setScanError('No one in queue yet. Try Standard Find.'); setStatus('idle'); return; }
+            if (!candidates.length) { setScanError('No one in queue. Try Standard Find.'); setStatus('idle'); return; }
             setChoices(candidates);
             setStatus('matching');
             startChoiceTimer();
-        } catch (e) { console.error('[startPremiumScan] error:', e); setScanError('Scan failed. Try again.'); setStatus('idle'); }
+        } catch (e) { setScanError('Scan failed. Try again.'); setStatus('idle'); }
     };
 
     const startChoiceTimer = () => {
@@ -281,36 +257,31 @@ export default function Chat1on1() {
             }
             const roomId = `room_p_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
             await update(ref(rtdb, 'queue/1on1'), { [`${partnerId}/roomId`]: roomId });
-            myIdRef.current = uid;
-            enterRoom(roomId);
+            // uid captured BEFORE the await, guaranteed to be same session
+            enterRoom(roomId, uid);
         } catch { setStatus('idle'); }
     };
 
-    // ─────────────────────────────────────────────────────────────────
-    // ENTER ROOM — sets refs, then triggers useEffect via setChatRoomId
-    // ─────────────────────────────────────────────────────────────────
-    const enterRoom = (roomId) => {
-        const uid = myIdRef.current; // must already be set by caller
-        console.log('[enterRoom] roomId:', roomId, 'uid:', uid);
-        if (!uid || !roomId) {
-            console.error('[enterRoom] ABORT — missing uid or roomId', { uid, roomId });
+    // ─── ENTER ROOM — passes uid explicitly, no ref ambiguity ───────────────────
+    const enterRoom = (roomId, uid) => {
+        if (!roomId || !uid) {
+            console.error('[enterRoom] missing roomId or uid', { roomId, uid });
             return;
         }
         roomIdRef.current = roomId;
         setMessages([]);
         setPartner(null);
         setStatus('chatting');
-        setChatRoomId(roomId); // ← triggers useEffect
+        // Bundle both values atomically — useEffect reads them together, guaranteed fresh
+        setChatState({ roomId, uid });
     };
 
-    // ─────────────────────────────────────────────────────────────────
-    // EXIT / NEXT
-    // ─────────────────────────────────────────────────────────────────
-    const doExit = (msg = true) => {
+    // ─── EXIT / NEXT ─────────────────────────────────────────────────────────────
+    const doExit = (withMsg = true) => {
         const rid = roomIdRef.current;
-        const uid = myIdRef.current || profile?.customId;
+        const uid = chatState?.uid || profile?.customId;
         if (rid && uid) {
-            if (msg) push(ref(rtdb, `chats/${rid}/messages`), {
+            if (withMsg) push(ref(rtdb, `chats/${rid}/messages`), {
                 type: 'system', text: `${profile?.displayName || 'Stranger'} left.`, ts: Date.now()
             }).catch(() => { });
             update(ref(rtdb, `chats/${rid}/members/${uid}`), { status: 'left' }).catch(() => { });
@@ -318,8 +289,7 @@ export default function Chat1on1() {
         stopQueue();
         isActiveRef.current = false;
         roomIdRef.current = null;
-        myIdRef.current = null;
-        setChatRoomId(null); // triggers useEffect cleanup
+        setChatState(null); // triggers useEffect cleanup
         setPartner(null);
         setMessages([]);
     };
@@ -327,18 +297,28 @@ export default function Chat1on1() {
     const handleLeave = () => { doExit(); setStatus('idle'); };
     const handleNext = () => { doExit(); setTimeout(() => startStandardSearch(), 100); };
 
+    // ─── SEND MESSAGE ─────────────────────────────────────────────────────────────
     const sendMessage = (e) => {
         e.preventDefault();
         const rid = roomIdRef.current;
-        const uid = myIdRef.current || profile?.customId;
+        const uid = chatState?.uid || profile?.customId;
         const text = inputText.trim();
         if (!text || !rid || !uid) return;
         push(ref(rtdb, `chats/${rid}/messages`), {
             senderId: uid,
             senderName: profile?.displayName || 'Stranger',
             text, ts: Date.now()
-        }).catch(err => console.error('Send msg failed:', err));
+        }).catch(err => console.error('Send failed:', err));
         setInputText('');
+    };
+
+    // ─── DELETE MESSAGE ──────────────────────────────────────────────────────────
+    const deleteMessage = (msgId) => {
+        const rid = roomIdRef.current;
+        if (!rid || !msgId) return;
+        update(ref(rtdb, `chats/${rid}/messages/${msgId}`), {
+            deleted: true, text: null
+        }).catch(() => { });
     };
 
     const handlePremiumUnlock = () => {
@@ -348,9 +328,7 @@ export default function Chat1on1() {
         setTimeout(() => startPremiumScan(), 100);
     };
 
-    // ─────────────────────────────────────────────────────────────────
-    // IDLE
-    // ─────────────────────────────────────────────────────────────────
+    // ─── IDLE ─────────────────────────────────────────────────────────────────────
     if (status === 'idle') return (
         <>
             {showModal && <PremiumModal onClose={() => setShowModal(false)} onUnlock={handlePremiumUnlock} />}
@@ -373,7 +351,7 @@ export default function Chat1on1() {
                         className="group p-8 bg-yellow-500/5 border border-yellow-500/20 hover:border-yellow-400/50 rounded-[1.5rem] text-left space-y-4 transition-all active:scale-[0.97] relative overflow-hidden">
                         <div className="flex items-center gap-2">
                             <Crown className="w-7 h-7 text-yellow-400" />
-                            {isPremium && <span className="text-[9px] text-green-400 bg-green-400/10 border border-green-400/20 px-2 py-0.5 rounded-full font-black uppercase tracking-widest">Active</span>}
+                            {isPremium && <span className="text-[9px] text-green-400 bg-green-400/10 border border-green-400/20 px-2 py-0.5 rounded-full font-black uppercase">Active</span>}
                         </div>
                         <div><h3 className="text-lg font-black">Premium Filter</h3><p className="text-xs text-yellow-600 font-black uppercase tracking-widest mt-1">♀♂ Opposite Focus</p></div>
                     </button>
@@ -383,9 +361,7 @@ export default function Chat1on1() {
         </>
     );
 
-    // ─────────────────────────────────────────────────────────────────
-    // FINDING
-    // ─────────────────────────────────────────────────────────────────
+    // ─── FINDING ──────────────────────────────────────────────────────────────────
     if (status === 'finding') return (
         <div className="flex flex-col items-center justify-center min-h-screen gap-8">
             <div className="relative w-24 h-24">
@@ -394,25 +370,21 @@ export default function Chat1on1() {
             </div>
             <div className="text-center">
                 <h3 className="text-xl font-black uppercase tracking-widest">Scanning...</h3>
-                <p className="text-gray-600 text-xs mt-2 font-mono">Waiting for someone to come online</p>
+                <p className="text-gray-600 text-xs mt-2">Waiting for someone to come online</p>
             </div>
             <button onClick={() => { stopQueue(); isActiveRef.current = false; setStatus('idle'); }}
-                className="px-6 py-2.5 bg-gray-900 border border-gray-800 hover:bg-gray-800 rounded-xl font-bold text-sm transition-all active:scale-95">
-                Cancel
-            </button>
+                className="px-6 py-2.5 bg-gray-900 border border-gray-800 hover:bg-gray-800 rounded-xl font-bold text-sm transition-all active:scale-95">Cancel</button>
         </div>
     );
 
-    // ─────────────────────────────────────────────────────────────────
-    // MATCHING (premium picker)
-    // ─────────────────────────────────────────────────────────────────
+    // ─── MATCHING (premium) ───────────────────────────────────────────────────────
     if (status === 'matching') return (
         <div className="flex flex-col items-center justify-center min-h-screen p-4">
             <div className="max-w-2xl w-full space-y-6">
                 <div className="flex items-center justify-between flex-wrap gap-3">
                     <div>
                         <h2 className="text-2xl font-black">Pick Your Match</h2>
-                        <p className="text-purple-400 text-xs font-bold uppercase tracking-widest mt-0.5">Opposite gender shown first</p>
+                        <p className="text-purple-400 text-xs font-bold uppercase mt-0.5">Opposite gender shown first</p>
                     </div>
                     <div className="bg-gray-900 border border-gray-800 px-4 py-2 rounded-xl flex items-center gap-2">
                         <Timer className="w-4 h-4 text-red-500 animate-pulse" />
@@ -431,7 +403,7 @@ export default function Chat1on1() {
                             </div>
                             <div className="text-center">
                                 <p className="font-black text-sm group-hover:text-white">{c.name}</p>
-                                <p className="text-[10px] text-gray-600 group-hover:text-purple-200 uppercase font-bold">{c.gender || '—'}</p>
+                                <p className="text-[10px] text-gray-600 uppercase font-bold">{c.gender || '—'}</p>
                             </div>
                             <div className="w-full py-2 bg-gray-950 group-hover:bg-white group-hover:text-purple-700 rounded-xl text-[9px] font-black uppercase tracking-widest transition-colors">Connect</div>
                         </button>
@@ -443,15 +415,14 @@ export default function Chat1on1() {
         </div>
     );
 
-    // ─────────────────────────────────────────────────────────────────
-    // CHATTING
-    // ─────────────────────────────────────────────────────────────────
-    const myId = myIdRef.current || profile?.customId;
+    // ─── CHATTING ─────────────────────────────────────────────────────────────────
+    const myUid = chatState?.uid || profile?.customId;
 
     return (
         <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-base,#050505)' }}>
+
             {/* Header */}
-            <div style={{ flexShrink: 0, borderBottom: '1px solid #111', background: 'rgba(5,5,5,0.97)', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>
+            <div style={{ flexShrink: 0, borderBottom: '1px solid #1a1a1a', background: 'rgba(5,5,5,0.97)', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
                     <img src={partner?.photo || generateAvatar('x')} style={{ width: 38, height: 38, borderRadius: 12, border: '2px solid #222', flexShrink: 0, background: '#111' }} loading="lazy" />
                     <div style={{ minWidth: 0 }}>
@@ -479,7 +450,7 @@ export default function Chat1on1() {
             </div>
 
             {/* Messages */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, WebkitOverflowScrolling: 'touch' }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6, WebkitOverflowScrolling: 'touch' }}>
                 {messages.length === 0 && (
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: 0.15 }}>
                         <MessageSquare style={{ width: 44, height: 44, color: '#555' }} />
@@ -487,19 +458,51 @@ export default function Chat1on1() {
                     </div>
                 )}
                 {messages.map((msg, i) => {
+                    // System messages
                     if (msg.type === 'system') return (
-                        <div key={msg.id || i} style={{ textAlign: 'center', padding: '8px 0', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: '#7c6a9a' }}>
+                        <div key={msg.id || i} style={{ textAlign: 'center', padding: '6px 0', fontSize: 10, color: '#6b51a3', letterSpacing: '0.08em' }}>
                             ── {msg.text} ──
                         </div>
                     );
-                    const isMe = msg.senderId === myId;
+
+                    // Deleted messages
+                    if (msg.deleted) return (
+                        <div key={msg.id || i} style={{ display: 'flex', justifyContent: msg.senderId === myUid ? 'flex-end' : 'flex-start' }}>
+                            <div style={{ padding: '8px 14px', borderRadius: 14, background: '#0d0d0d', border: '1px solid #1a1a1a' }}>
+                                <p style={{ fontSize: 12, color: '#555', fontStyle: 'italic' }}>🗑 This message was deleted</p>
+                            </div>
+                        </div>
+                    );
+
+                    const isMe = msg.senderId === myUid;
                     return (
                         <div key={msg.id || i} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
-                            <div style={{ maxWidth: '80%', padding: '10px 14px', borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px', background: isMe ? 'var(--accent,#7c3aed)' : '#1a1a1a', border: isMe ? 'none' : '1px solid #2a2a2a', color: '#ffffff', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
-                                <p style={{ fontSize: 14, lineHeight: 1.5, wordBreak: 'break-word', margin: 0, color: '#fff' }}>{msg.text}</p>
-                                <p style={{ fontSize: 9, marginTop: 4, opacity: 0.5, textAlign: 'right', fontFamily: 'monospace', color: '#fff' }}>
-                                    {msg.ts ? new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                                </p>
+                            <div style={{ position: 'relative' }} className="group">
+                                <div style={{
+                                    maxWidth: '75vw', padding: '10px 14px',
+                                    borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                                    background: isMe ? 'var(--accent,#7c3aed)' : '#1a1a1a',
+                                    border: isMe ? 'none' : '1px solid #2a2a2a',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.35)'
+                                }}>
+                                    <p style={{ fontSize: 14, lineHeight: 1.5, wordBreak: 'break-word', margin: 0, color: '#ffffff' }}>{msg.text}</p>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, gap: 8 }}>
+                                        <p style={{ fontSize: 9, opacity: 0.45, fontFamily: 'monospace', color: '#fff', margin: 0 }}>
+                                            {msg.ts ? new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                        </p>
+                                        {/* Delete button — only shown for own messages on hover */}
+                                        {isMe && (
+                                            <button
+                                                onClick={() => deleteMessage(msg.id)}
+                                                className="opacity-0 group-hover:opacity-100"
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'rgba(255,255,255,0.4)', transition: 'opacity 0.15s' }}
+                                                title="Delete message"
+                                            >
+                                                <Trash2 style={{ width: 11, height: 11 }} />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     );
