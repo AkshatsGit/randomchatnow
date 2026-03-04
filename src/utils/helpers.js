@@ -19,6 +19,23 @@ export const generateRandomName = () => {
     return `${adj}${noun}`;
 };
 
+// Generate a random avatar URL using DiceBear
+export const generateAvatar = (seed) => {
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+};
+
+// Fetch user IP address (approximate via public API)
+export const fetchIP = async () => {
+    try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        return data.ip;
+    } catch (error) {
+        console.error("IP Fetch failed:", error);
+        return "unknown";
+    }
+};
+
 // Mock payment gateway for INR 10 gender filter
 export const processPayment = async (amountInINR) => {
     return new Promise((resolve) => {

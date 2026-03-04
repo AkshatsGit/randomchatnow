@@ -1,6 +1,6 @@
-import { initializeApp } from "firebase/app";
-import { getAuth, signInAnonymously, onAuthStateChanged, connectAuthEmulator } from "firebase/auth";
-import { getDatabase, ref, set, get, update, onValue, onDisconnect, remove, push, connectDatabaseEmulator } from "firebase/database";
+import { getAuth, signInAnonymously, onAuthStateChanged, connectAuthEmulator, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
+import { getDatabase, ref, set, get, update, onValue, onDisconnect, remove, push, connectDatabaseEmulator, serverTimestamp } from "firebase/database";
+import { getAnalytics, logEvent } from "firebase/analytics";
 
 // Use environment variables for Firebase, fallback to mock data for emulators
 const firebaseConfig = {
@@ -16,6 +16,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const rtdb = getDatabase(app);
+const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
+const googleProvider = new GoogleAuthProvider();
 
 // Connect to Emulators only if explicitly requested, otherwise use live backend
 if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === "true") {
@@ -26,4 +28,9 @@ if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === "true") {
     console.log("🟢 Connected to live Firebase Production Database!");
 }
 
-export { app, auth, rtdb, signInAnonymously, onAuthStateChanged, ref, set, get, update, onValue, onDisconnect, remove, push };
+export {
+    app, auth, rtdb, analytics, googleProvider,
+    signInAnonymously, signInWithPopup, signOut, onAuthStateChanged,
+    ref, set, get, update, onValue, onDisconnect, remove, push, serverTimestamp,
+    logEvent
+};
