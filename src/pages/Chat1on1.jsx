@@ -61,7 +61,7 @@ export default function Chat1on1() {
     const [scanError, setScanError] = useState('');
 
     const endRef = useRef(null);
-    const myIdRef = useRef(null);
+    const myIdRef = useRef(null); // always set BEFORE setChatRoomId / enterRoom
     const roomIdRef = useRef(null);
     const queueUnsubRef = useRef(null);
     const timerRef = useRef(null);
@@ -70,44 +70,54 @@ export default function Chat1on1() {
     // Auto-scroll on new messages
     useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-    // ── Room effect: runs when chatRoomId changes. React cleans up on exit. ──
+    // ── Room effect: driven by chatRoomId state. React auto-cleans on exit. ──
+    // IMPORTANT: only reads refs (myIdRef) — never reads 'profile' to avoid stale closure.
     useEffect(() => {
-        if (!chatRoomId) return;
-        const uid = myIdRef.current || profile?.customId;
-        if (!uid) return;
+        const roomId = chatRoomId;
+        const uid = myIdRef.current;
+        if (!roomId || !uid) {
+            console.log('[Room effect] skipped — roomId:', roomId, 'uid:', uid);
+            return;
+        }
+        console.log('[Room effect] setting up listeners for room:', roomId, 'uid:', uid);
 
         // Register as member
-        const myMemberRef = ref(rtdb, `chats/${chatRoomId}/members/${uid}`);
+        const myMemberRef = ref(rtdb, `chats/${roomId}/members/${uid}`);
         set(myMemberRef, {
             status: 'online',
             name: profile?.displayName || 'Stranger',
             photo: profile?.photoURL || generateAvatar(uid),
             gender: profile?.gender || 'unknown',
             joinedAt: Date.now()
-        }).catch(() => { });
+        }).catch(e => console.error('[Room effect] set member failed:', e));
         onDisconnect(myMemberRef).update({ status: 'offline' });
 
-        // System "connected" message — only push once
-        push(ref(rtdb, `chats/${chatRoomId}/messages`), {
+        // System connected message
+        push(ref(rtdb, `chats/${roomId}/messages`), {
             type: 'system', text: '🔗 Connected! Say hello 👋', ts: Date.now()
-        }).catch(() => { });
+        }).catch(e => console.error('[Room effect] push system msg failed:', e));
 
-        // Listen to members (detect partner)
-        const memUnsub = onValue(ref(rtdb, `chats/${chatRoomId}/members`), snap => {
+        // Member listener (who is in the room)
+        const memUnsub = onValue(ref(rtdb, `chats/${roomId}/members`), snap => {
             if (!snap.exists()) return;
             Object.entries(snap.val()).forEach(([id, data]) => {
                 if (id !== uid) setPartner(prev => ({ ...prev, id, ...data }));
             });
         });
 
-        // Listen to messages
-        const msgUnsub = onValue(ref(rtdb, `chats/${chatRoomId}/messages`), snap => {
+        // Message listener
+        const msgUnsub = onValue(ref(rtdb, `chats/${roomId}/messages`), snap => {
+            console.log('[msg listener] fired, count:', snap.size);
             const msgs = [];
             snap.forEach(c => msgs.push({ id: c.key, ...c.val() }));
             setMessages(msgs.slice(-MAX_MSGS));
         });
 
-        return () => { memUnsub(); msgUnsub(); };
+        return () => {
+            console.log('[Room effect] cleanup for room:', roomId);
+            memUnsub();
+            msgUnsub();
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chatRoomId]);
 
@@ -133,12 +143,12 @@ export default function Chat1on1() {
     // ─────────────────────────────────────────────────────────────────
     const startStandardSearch = () => {
         const uid = profile?.customId;
-        if (!uid) return;
+        console.log('[startStandardSearch] uid:', uid);
+        if (!uid) { console.error('No uid — profile not ready'); return; }
 
-        // Clean up any previous state
         stopQueue();
         isActiveRef.current = true;
-        myIdRef.current = uid;
+        myIdRef.current = uid;  // MUST be set before enterRoom
         setStatus('finding');
         setPartner(null);
         setMessages([]);
@@ -207,17 +217,19 @@ export default function Chat1on1() {
     };
 
     // ─────────────────────────────────────────────────────────────────
-    // PREMIUM SCAN (no queue join — just snapshot)
+    // PREMIUM SCAN (snapshot only — never joins queue)
     // ─────────────────────────────────────────────────────────────────
     const startPremiumScan = async () => {
+        const uid = profile?.customId;
+        console.log('[startPremiumScan] uid:', uid);
         stopQueue();
+        myIdRef.current = uid || null;
         setScanError('');
         setStatus('finding');
         setChoices([]);
 
         try {
             const snap = await get(ref(rtdb, 'queue/1on1'));
-            const uid = profile?.customId;
             if (!snap.exists()) { setScanError('No one online right now. Try Standard Find or wait.'); setStatus('idle'); return; }
 
             const queue = snap.val();
@@ -231,11 +243,12 @@ export default function Chat1on1() {
                 })
                 .slice(0, 3).map(([, v]) => v);
 
+            console.log('[startPremiumScan] candidates found:', candidates.length);
             if (!candidates.length) { setScanError('No one in queue yet. Try Standard Find.'); setStatus('idle'); return; }
             setChoices(candidates);
             setStatus('matching');
             startChoiceTimer();
-        } catch { setScanError('Scan failed. Try again.'); setStatus('idle'); }
+        } catch (e) { console.error('[startPremiumScan] error:', e); setScanError('Scan failed. Try again.'); setStatus('idle'); }
     };
 
     const startChoiceTimer = () => {
@@ -269,17 +282,20 @@ export default function Chat1on1() {
     };
 
     // ─────────────────────────────────────────────────────────────────
-    // ENTER ROOM — just update state/refs; useEffect handles Firebase
+    // ENTER ROOM — sets refs, then triggers useEffect via setChatRoomId
     // ─────────────────────────────────────────────────────────────────
     const enterRoom = (roomId) => {
-        const uid = myIdRef.current || profile?.customId;
-        if (!uid || !roomId) return;
-        myIdRef.current = uid;
+        const uid = myIdRef.current; // must already be set by caller
+        console.log('[enterRoom] roomId:', roomId, 'uid:', uid);
+        if (!uid || !roomId) {
+            console.error('[enterRoom] ABORT — missing uid or roomId', { uid, roomId });
+            return;
+        }
         roomIdRef.current = roomId;
         setMessages([]);
         setPartner(null);
         setStatus('chatting');
-        setChatRoomId(roomId); // triggers the useEffect
+        setChatRoomId(roomId); // ← triggers useEffect
     };
 
     // ─────────────────────────────────────────────────────────────────
