@@ -1,63 +1,43 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import {
-    rtdb, ref, push, set, onValue, update, remove, onDisconnect, get
-} from '../services/firebase';
-import {
-    Send, LogOut, RefreshCw, MessageSquare,
-    ChevronRight, Heart, Zap, Timer, Lock, Crown, Check, X, Sparkles
-} from 'lucide-react';
+import { rtdb, ref, push, set, onValue, update, remove, onDisconnect, get } from '../services/firebase';
+import { Send, LogOut, RefreshCw, MessageSquare, ChevronRight, Heart, Zap, Timer, Lock, Crown, Check, X, Sparkles } from 'lucide-react';
 import { generateAvatar } from '../utils/helpers';
 
 const PREMIUM_CODE = 'AKSHAT';
 const MAX_MSGS = 150;
-const NO_ONE_MSG = 'No one is in the queue right now. Try standard or wait.';
 
-// ─── Premium Modal ────────────────────────────────────────────────────────────
+// ─── Premium Modal ─────────────────────────────────────────────────────────────
 const PremiumModal = ({ onClose, onUnlock }) => {
     const [code, setCode] = useState('');
     const [err, setErr] = useState('');
     const [ok, setOk] = useState(false);
-
     const submit = (e) => {
         e.preventDefault();
         if (code.trim().toUpperCase() === PREMIUM_CODE) { setOk(true); setTimeout(onUnlock, 700); }
-        else { setErr('Invalid code. Try again.'); setCode(''); }
+        else { setErr('Invalid code.'); setCode(''); }
     };
-
     return (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
-            <div className="w-full max-w-sm bg-gray-950 border border-gray-800 rounded-[2rem] p-7 space-y-6 relative overflow-hidden" onClick={e => e.stopPropagation()}>
-                <div className="absolute -top-10 -right-10 w-40 h-40 bg-yellow-500/5 rounded-full blur-2xl pointer-events-none" />
+            <div className="w-full max-w-sm bg-gray-950 border border-gray-800 rounded-[2rem] p-7 space-y-6 relative" onClick={e => e.stopPropagation()}>
                 <button onClick={onClose} className="absolute top-5 right-5 text-gray-600 hover:text-white"><X className="w-5 h-5" /></button>
                 <div className="flex flex-col items-center gap-3 text-center">
                     <div className="p-4 bg-yellow-500/10 rounded-2xl"><Crown className="w-10 h-10 text-yellow-400" /></div>
                     <h2 className="text-2xl font-black">Premium Filter</h2>
-                    <p className="text-gray-500 text-xs leading-relaxed max-w-xs">
-                        Pick from <span className="text-purple-400 font-bold">3 live people</span> in the queue. Opposite gender shown first.
-                    </p>
+                    <p className="text-gray-500 text-xs leading-relaxed">Pick from <span className="text-purple-400 font-bold">3 live people</span>. Opposite gender first.</p>
                 </div>
-                <a href="#" className="block w-full py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 rounded-xl font-black text-center text-black text-sm uppercase tracking-widest active:scale-95 transition-all">
-                    ⚡ Buy Premium — ₹10
-                </a>
-                <div className="flex items-center gap-3">
-                    <div className="flex-1 h-px bg-gray-800" />
-                    <span className="text-[9px] text-gray-600 font-black uppercase tracking-widest whitespace-nowrap">or have a code?</span>
-                    <div className="flex-1 h-px bg-gray-800" />
-                </div>
+                <a href="#" className="block w-full py-4 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-xl font-black text-center text-black text-sm uppercase tracking-widest">⚡ Buy Premium — ₹10</a>
+                <div className="flex items-center gap-3"><div className="flex-1 h-px bg-gray-800" /><span className="text-[9px] text-gray-600 font-black uppercase tracking-widest whitespace-nowrap">or enter code</span><div className="flex-1 h-px bg-gray-800" /></div>
                 <form onSubmit={submit} className="space-y-3">
                     <div className="relative">
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
-                        <input value={code} onChange={e => { setCode(e.target.value); setErr(''); }}
-                            placeholder="Enter premium code..."
-                            className="w-full bg-gray-900 border border-gray-800 focus:border-purple-500 rounded-xl py-3.5 pl-11 pr-4 outline-none text-center font-mono uppercase tracking-widest text-sm transition-colors"
-                        />
+                        <input value={code} onChange={e => { setCode(e.target.value); setErr(''); }} placeholder="Enter code..." autoComplete="off"
+                            className="w-full bg-gray-900 border border-gray-800 focus:border-purple-500 rounded-xl py-3.5 pl-11 pr-4 outline-none text-center font-mono uppercase tracking-widest text-sm transition-colors" />
                     </div>
                     {err && <p className="text-red-500 text-xs text-center font-bold">{err}</p>}
-                    {ok && <p className="text-green-500 text-xs text-center font-bold flex items-center justify-center gap-1"><Check className="w-3 h-3" /> Unlocked!</p>}
-                    <button type="submit" disabled={!code.trim() || ok}
-                        className="w-full py-3.5 bg-purple-600 hover:bg-purple-500 rounded-xl font-black uppercase tracking-widest text-sm transition-all disabled:opacity-40 active:scale-95">
-                        {ok ? '✓ Unlocked!' : 'Activate Code'}
+                    {ok && <p className="text-green-500 text-xs text-center font-bold flex items-center justify-center gap-1"><Check className="w-3 h-3" />Unlocked!</p>}
+                    <button type="submit" disabled={!code.trim() || ok} className="w-full py-3.5 bg-purple-600 hover:bg-purple-500 rounded-xl font-black uppercase tracking-widest text-sm transition-all disabled:opacity-40 active:scale-95">
+                        {ok ? '✓ Unlocked!' : 'Activate'}
                     </button>
                 </form>
             </div>
@@ -65,12 +45,12 @@ const PremiumModal = ({ onClose, onUnlock }) => {
     );
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Main ──────────────────────────────────────────────────────────────────────
 export default function Chat1on1() {
     const { profile } = useAuth();
 
     const [status, setStatus] = useState('idle');
-    const [chatRoomId, setChatRoomId] = useState(null); // drives message listener via useEffect
+    const [chatRoomId, setChatRoomId] = useState(null);
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState('');
     const [partner, setPartner] = useState(null);
@@ -81,78 +61,89 @@ export default function Chat1on1() {
     const [scanError, setScanError] = useState('');
 
     const endRef = useRef(null);
-    const roomIdRef = useRef(null);
     const myIdRef = useRef(null);
+    const roomIdRef = useRef(null);
     const queueUnsubRef = useRef(null);
     const timerRef = useRef(null);
     const isActiveRef = useRef(false);
 
+    // Auto-scroll on new messages
     useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-    // ── React-idiomatic room listener: fires whenever chatRoomId state changes ──
-    // This eliminates ALL stale closure bugs — effect always runs with fresh values
+    // ── Room effect: runs when chatRoomId changes. React cleans up on exit. ──
     useEffect(() => {
-        if (!chatRoomId || !profile?.customId) return;
-        const uid = myIdRef.current || profile.customId;
-        const roomId = chatRoomId;
+        if (!chatRoomId) return;
+        const uid = myIdRef.current || profile?.customId;
+        if (!uid) return;
 
-        // Write self as member
-        const myMemberRef = ref(rtdb, `chats/${roomId}/members/${uid}`);
+        // Register as member
+        const myMemberRef = ref(rtdb, `chats/${chatRoomId}/members/${uid}`);
         set(myMemberRef, {
             status: 'online',
-            name: profile.displayName || 'Stranger',
-            photo: profile.photoURL || generateAvatar(uid),
-            gender: profile.gender || 'unknown',
+            name: profile?.displayName || 'Stranger',
+            photo: profile?.photoURL || generateAvatar(uid),
+            gender: profile?.gender || 'unknown',
             joinedAt: Date.now()
         }).catch(() => { });
         onDisconnect(myMemberRef).update({ status: 'offline' });
 
-        // System message
-        push(ref(rtdb, `chats/${roomId}/messages`), {
+        // System "connected" message — only push once
+        push(ref(rtdb, `chats/${chatRoomId}/messages`), {
             type: 'system', text: '🔗 Connected! Say hello 👋', ts: Date.now()
         }).catch(() => { });
 
-        // Member listener
-        const memUnsub = onValue(ref(rtdb, `chats/${roomId}/members`), snap => {
+        // Listen to members (detect partner)
+        const memUnsub = onValue(ref(rtdb, `chats/${chatRoomId}/members`), snap => {
             if (!snap.exists()) return;
             Object.entries(snap.val()).forEach(([id, data]) => {
                 if (id !== uid) setPartner(prev => ({ ...prev, id, ...data }));
             });
         });
 
-        // Message listener
-        const msgUnsub = onValue(ref(rtdb, `chats/${roomId}/messages`), snap => {
+        // Listen to messages
+        const msgUnsub = onValue(ref(rtdb, `chats/${chatRoomId}/messages`), snap => {
             const msgs = [];
             snap.forEach(c => msgs.push({ id: c.key, ...c.val() }));
             setMessages(msgs.slice(-MAX_MSGS));
         });
 
-        return () => {
-            memUnsub();
-            msgUnsub();
-        };
-        // profile.customId ensures fresh uid; chatRoomId drives the whole effect
+        return () => { memUnsub(); msgUnsub(); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chatRoomId]);
 
-    const _resetState = () => {
-        setPartner(null);
-        setMessages([]);
-        setChoices([]);
-        setScanError('');
+    // Unmount: stop everything
+    useEffect(() => {
+        return () => {
+            isActiveRef.current = false;
+            if (queueUnsubRef.current) { queueUnsubRef.current(); queueUnsubRef.current = null; }
+            if (timerRef.current) clearInterval(timerRef.current);
+            if (myIdRef.current) remove(ref(rtdb, `queue/1on1/${myIdRef.current}`)).catch(() => { });
+        };
+    }, []);
+
+    // ── Stop just the queue listener + timer (not the room) ──
+    const stopQueue = () => {
+        if (queueUnsubRef.current) { queueUnsubRef.current(); queueUnsubRef.current = null; }
+        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+        if (myIdRef.current) { remove(ref(rtdb, `queue/1on1/${myIdRef.current}`)).catch(() => { }); }
     };
 
     // ─────────────────────────────────────────────────────────────────
-    // STANDARD SEARCH — user joins queue, waits for roomId signal
+    // STANDARD SEARCH
     // ─────────────────────────────────────────────────────────────────
     const startStandardSearch = () => {
         const uid = profile?.customId;
         if (!uid) return;
-        _hardCleanup();
-        _resetState();
+
+        // Clean up any previous state
+        stopQueue();
         isActiveRef.current = true;
         myIdRef.current = uid;
         setStatus('finding');
+        setPartner(null);
+        setMessages([]);
+        setChoices([]);
+        setScanError('');
 
         const qRef = ref(rtdb, `queue/1on1/${uid}`);
         onDisconnect(qRef).remove();
@@ -166,7 +157,7 @@ export default function Chat1on1() {
         }).then(() => {
             if (!isActiveRef.current) return;
 
-            // Watch the entire queue for a roomId signal or matchmaking opportunity
+            // Watch queue — fires on every change, waits as long as needed
             queueUnsubRef.current = onValue(ref(rtdb, 'queue/1on1'), snap => {
                 if (!isActiveRef.current) return;
                 if (!snap.exists()) return;
@@ -175,73 +166,59 @@ export default function Chat1on1() {
                 const me = queue[uid];
                 if (!me) return;
 
-                // ✅ Partner wrote our roomId → enter room
+                // Someone matched me → enter room
                 if (me.roomId) {
                     isActiveRef.current = false;
                     const rid = me.roomId;
-                    setTimeout(() => {
-                        if (queueUnsubRef.current) { queueUnsubRef.current(); queueUnsubRef.current = null; }
-                        remove(qRef).catch(() => { });
-                        enterRoom(rid);
-                    }, 0);
+                    if (queueUnsubRef.current) { queueUnsubRef.current(); queueUnsubRef.current = null; }
+                    remove(qRef).catch(() => { });
+                    enterRoom(rid);
                     return;
                 }
 
-                // ── Am I the oldest (matchmaker)? ──
-                // Only match users who are NOT in premium-waiting state
-                const candidates = Object.entries(queue).filter(([id, e]) =>
-                    id !== uid &&
-                    !e.roomId &&
-                    !e.premiumWaiting   // skip premium-selecting users
+                // Am I the oldest user in queue? Only then do I initiate match.
+                const others = Object.entries(queue).filter(([id, e]) =>
+                    id !== uid && !e.roomId
                 );
-                if (!candidates.length) return;
+                if (!others.length) return;
 
                 const myTs = me.ts;
-                const canMatch = candidates.every(([oid, oe]) =>
+                const amOldest = others.every(([oid, oe]) =>
                     myTs < oe.ts || (myTs === oe.ts && uid < oid)
                 );
-                if (!canMatch) return;
+                if (!amOldest) return; // wait for the older user to match me
 
-                // Pick newest candidate as partner
-                candidates.sort(([, a], [, b]) => b.ts - a.ts);
-                const [partnerId] = candidates[0];
+                // Match with newest waiter
+                others.sort(([, a], [, b]) => b.ts - a.ts);
+                const [partnerId] = others[0];
                 const roomId = `room_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
 
                 isActiveRef.current = false;
-
                 update(ref(rtdb, 'queue/1on1'), {
                     [`${uid}/roomId`]: roomId,
                     [`${partnerId}/roomId`]: roomId,
                 }).then(() => {
-                    setTimeout(() => {
-                        if (queueUnsubRef.current) { queueUnsubRef.current(); queueUnsubRef.current = null; }
-                        remove(qRef).catch(() => { });
-                        enterRoom(roomId);
-                    }, 0);
-                }).catch(() => { isActiveRef.current = true; }); // retry on failure
+                    if (queueUnsubRef.current) { queueUnsubRef.current(); queueUnsubRef.current = null; }
+                    remove(qRef).catch(() => { });
+                    enterRoom(roomId);
+                }).catch(() => { isActiveRef.current = true; }); // retry
             });
         }).catch(() => setStatus('idle'));
     };
 
     // ─────────────────────────────────────────────────────────────────
-    // PREMIUM SCAN — NEVER joins the queue. Reads a snapshot only.
-    // The queued person stays in the queue, waits for their roomId signal.
+    // PREMIUM SCAN (no queue join — just snapshot)
     // ─────────────────────────────────────────────────────────────────
     const startPremiumScan = async () => {
-        _hardCleanup();
-        _resetState();
+        stopQueue();
         setScanError('');
         setStatus('finding');
+        setChoices([]);
 
         try {
             const snap = await get(ref(rtdb, 'queue/1on1'));
             const uid = profile?.customId;
-
-            if (!snap.exists()) {
-                setScanError(NO_ONE_MSG);
-                setStatus('idle');
-                return;
-            }
+            if (!snap.exists()) { setScanError('No one online right now. Try Standard Find or wait.'); setStatus('idle'); return; }
 
             const queue = snap.val();
             const candidates = Object.entries(queue)
@@ -252,119 +229,83 @@ export default function Chat1on1() {
                     if (b.gender === opp && a.gender !== opp) return 1;
                     return a.ts - b.ts;
                 })
-                .slice(0, 3)
-                .map(([, v]) => v);
+                .slice(0, 3).map(([, v]) => v);
 
-            if (!candidates.length) {
-                setScanError(NO_ONE_MSG);
-                setStatus('idle');
-                return;
-            }
-
+            if (!candidates.length) { setScanError('No one in queue yet. Try Standard Find.'); setStatus('idle'); return; }
             setChoices(candidates);
             setStatus('matching');
-            startTimer();
-        } catch (e) {
-            setScanError('Scan failed. Please try again.');
-            setStatus('idle');
-        }
+            startChoiceTimer();
+        } catch { setScanError('Scan failed. Try again.'); setStatus('idle'); }
     };
 
-    const startTimer = () => {
+    const startChoiceTimer = () => {
         setChoiceTimer(15);
         if (timerRef.current) clearInterval(timerRef.current);
         timerRef.current = setInterval(() => {
-            setChoiceTimer(prev => {
-                if (prev <= 1) {
-                    clearInterval(timerRef.current);
-                    timerRef.current = null;
-                    setStatus('idle');
-                    return 0;
-                }
-                return prev - 1;
+            setChoiceTimer(p => {
+                if (p <= 1) { clearInterval(timerRef.current); timerRef.current = null; setStatus('idle'); return 0; }
+                return p - 1;
             });
         }, 1000);
     };
 
-    // ─────────────────────────────────────────────────────────────────
-    // SELECT PARTNER (premium) — verify partner still free, then match
-    // ─────────────────────────────────────────────────────────────────
     const selectPartner = async (partnerId) => {
         if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
         const uid = profile?.customId;
         if (!uid || !partnerId) return;
-
-        setStatus('finding'); // show spinner while we verify
-
+        setStatus('finding');
         try {
-            // Verify partner is still waiting (not already matched)
-            const partnerSnap = await get(ref(rtdb, `queue/1on1/${partnerId}`));
-            if (!partnerSnap.exists() || partnerSnap.val()?.roomId) {
-                setScanError('That person just matched with someone else. Rescanning...');
-                setTimeout(() => startPremiumScan(), 1500);
+            const snap = await get(ref(rtdb, `queue/1on1/${partnerId}`));
+            if (!snap.exists() || snap.val()?.roomId) {
+                setScanError('That person just matched. Rescanning...');
+                setTimeout(() => startPremiumScan(), 1000);
                 return;
             }
-
             const roomId = `room_p_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-
-            // Write roomId to partner — their queue listener will pick it up and enter room
-            await update(ref(rtdb, 'queue/1on1'), {
-                [`${partnerId}/roomId`]: roomId,
-            });
-
-            // Premium user was NOT in queue, so we go straight to enterRoom
+            await update(ref(rtdb, 'queue/1on1'), { [`${partnerId}/roomId`]: roomId });
             myIdRef.current = uid;
             enterRoom(roomId);
-        } catch (e) {
-            console.error('selectPartner failed:', e);
-            setStatus('idle');
-        }
+        } catch { setStatus('idle'); }
     };
 
-    // enterRoom: just sets refs+state. The useEffect above handles Firebase listeners.
+    // ─────────────────────────────────────────────────────────────────
+    // ENTER ROOM — just update state/refs; useEffect handles Firebase
+    // ─────────────────────────────────────────────────────────────────
     const enterRoom = (roomId) => {
         const uid = myIdRef.current || profile?.customId;
         if (!uid || !roomId) return;
-        roomIdRef.current = roomId;
         myIdRef.current = uid;
+        roomIdRef.current = roomId;
         setMessages([]);
         setPartner(null);
-        setChatRoomId(roomId); // ← triggers the useEffect
         setStatus('chatting');
+        setChatRoomId(roomId); // triggers the useEffect
     };
 
     // ─────────────────────────────────────────────────────────────────
     // EXIT / NEXT
     // ─────────────────────────────────────────────────────────────────
-    const doExit = (withMsg = true) => {
+    const doExit = (msg = true) => {
         const rid = roomIdRef.current;
         const uid = myIdRef.current || profile?.customId;
         if (rid && uid) {
-            if (withMsg) {
-                push(ref(rtdb, `chats/${rid}/messages`), {
-                    type: 'system', text: `${profile?.displayName || 'Stranger'} left.`, ts: Date.now()
-                }).catch(() => { });
-            }
+            if (msg) push(ref(rtdb, `chats/${rid}/messages`), {
+                type: 'system', text: `${profile?.displayName || 'Stranger'} left.`, ts: Date.now()
+            }).catch(() => { });
             update(ref(rtdb, `chats/${rid}/members/${uid}`), { status: 'left' }).catch(() => { });
         }
-        // Stop queue listener + timer
-        if (queueUnsubRef.current) { queueUnsubRef.current(); queueUnsubRef.current = null; }
-        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-        if (myIdRef.current) remove(ref(rtdb, `queue/1on1/${myIdRef.current}`)).catch(() => { });
+        stopQueue();
+        isActiveRef.current = false;
         roomIdRef.current = null;
         myIdRef.current = null;
-        setChatRoomId(null); // ← triggers useEffect cleanup (unsubscribes msg+mem listeners)
+        setChatRoomId(null); // triggers useEffect cleanup
         setPartner(null);
         setMessages([]);
-        isActiveRef.current = false;
     };
 
     const handleLeave = () => { doExit(); setStatus('idle'); };
-    const handleNext = () => { doExit(); setTimeout(() => startStandardSearch(), 80); };
+    const handleNext = () => { doExit(); setTimeout(() => startStandardSearch(), 100); };
 
-    // ─────────────────────────────────────────────────────────────────
-    // SEND MESSAGE
-    // ─────────────────────────────────────────────────────────────────
     const sendMessage = (e) => {
         e.preventDefault();
         const rid = roomIdRef.current;
@@ -373,10 +314,9 @@ export default function Chat1on1() {
         if (!text || !rid || !uid) return;
         push(ref(rtdb, `chats/${rid}/messages`), {
             senderId: uid,
-            senderName: profile?.displayName || 'You',
-            text,
-            ts: Date.now()
-        }).catch(err => console.error('Send failed:', err));
+            senderName: profile?.displayName || 'Stranger',
+            text, ts: Date.now()
+        }).catch(err => console.error('Send msg failed:', err));
         setInputText('');
     };
 
@@ -388,7 +328,7 @@ export default function Chat1on1() {
     };
 
     // ─────────────────────────────────────────────────────────────────
-    // RENDER: IDLE
+    // IDLE
     // ─────────────────────────────────────────────────────────────────
     if (status === 'idle') return (
         <>
@@ -399,49 +339,31 @@ export default function Chat1on1() {
                         <Zap className="w-12 h-12 text-purple-500" />
                     </div>
                     <h2 className="text-4xl font-black">Match Portal</h2>
-                    <p className="text-gray-500 text-sm font-medium">
-                        {profile?.displayName ? `Ready, ${profile.displayName}?` : 'Find your random match.'}
-                    </p>
-                    {scanError && (
-                        <p className="text-yellow-500 text-xs font-bold bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-4 py-2">
-                            {scanError}
-                        </p>
-                    )}
+                    <p className="text-gray-500 text-sm">{profile?.displayName ? `Ready, ${profile.displayName}?` : 'Find your random match.'}</p>
+                    {scanError && <p className="text-yellow-500 text-xs bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-4 py-2">{scanError}</p>}
                 </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg">
                     <button onClick={startStandardSearch}
                         className="group p-8 bg-gray-900 border border-gray-800 hover:border-purple-500/50 rounded-[1.5rem] text-left space-y-4 transition-all active:scale-[0.97]">
                         <RefreshCw className="w-7 h-7 text-gray-600 group-hover:text-purple-400 group-hover:rotate-180 transition-all duration-500" />
-                        <div>
-                            <h3 className="text-lg font-black">Standard Find</h3>
-                            <p className="text-xs text-gray-500 mt-1">Free · instant · random.</p>
-                        </div>
+                        <div><h3 className="text-lg font-black">Standard Find</h3><p className="text-xs text-gray-500 mt-1">Waits for people to come online.</p></div>
                     </button>
-
                     <button onClick={() => { if (isPremium) startPremiumScan(); else setShowModal(true); }}
                         className="group p-8 bg-yellow-500/5 border border-yellow-500/20 hover:border-yellow-400/50 rounded-[1.5rem] text-left space-y-4 transition-all active:scale-[0.97] relative overflow-hidden">
-                        <div className="absolute -top-4 -right-4 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
-                            <Heart className="w-24 h-24 text-yellow-400" />
-                        </div>
                         <div className="flex items-center gap-2">
                             <Crown className="w-7 h-7 text-yellow-400" />
                             {isPremium && <span className="text-[9px] text-green-400 bg-green-400/10 border border-green-400/20 px-2 py-0.5 rounded-full font-black uppercase tracking-widest">Active</span>}
                         </div>
-                        <div>
-                            <h3 className="text-lg font-black">Premium Filter</h3>
-                            <p className="text-xs text-yellow-600 font-black uppercase tracking-widest mt-1">♀♂ Opposite Focus</p>
-                        </div>
+                        <div><h3 className="text-lg font-black">Premium Filter</h3><p className="text-xs text-yellow-600 font-black uppercase tracking-widest mt-1">♀♂ Opposite Focus</p></div>
                     </button>
                 </div>
-
-                {isPremium && <p className="text-xs text-green-500/50 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3" /> Premium Active</p>}
+                {isPremium && <p className="text-xs text-green-500/50 font-bold flex items-center gap-1"><Sparkles className="w-3 h-3" />Premium Active</p>}
             </div>
         </>
     );
 
     // ─────────────────────────────────────────────────────────────────
-    // RENDER: FINDING
+    // FINDING
     // ─────────────────────────────────────────────────────────────────
     if (status === 'finding') return (
         <div className="flex flex-col items-center justify-center min-h-screen gap-8">
@@ -451,9 +373,9 @@ export default function Chat1on1() {
             </div>
             <div className="text-center">
                 <h3 className="text-xl font-black uppercase tracking-widest">Scanning...</h3>
-                <p className="text-gray-600 text-xs mt-2 font-mono">Waiting for a match</p>
+                <p className="text-gray-600 text-xs mt-2 font-mono">Waiting for someone to come online</p>
             </div>
-            <button onClick={() => { isActiveRef.current = false; _hardCleanup(); setStatus('idle'); }}
+            <button onClick={() => { stopQueue(); isActiveRef.current = false; setStatus('idle'); }}
                 className="px-6 py-2.5 bg-gray-900 border border-gray-800 hover:bg-gray-800 rounded-xl font-bold text-sm transition-all active:scale-95">
                 Cancel
             </button>
@@ -461,7 +383,7 @@ export default function Chat1on1() {
     );
 
     // ─────────────────────────────────────────────────────────────────
-    // RENDER: MATCHING (premium picker)
+    // MATCHING (premium picker)
     // ─────────────────────────────────────────────────────────────────
     if (status === 'matching') return (
         <div className="flex flex-col items-center justify-center min-h-screen p-4">
@@ -476,59 +398,49 @@ export default function Chat1on1() {
                         <span className="text-xl font-black font-mono tabular-nums">{choiceTimer}s</span>
                     </div>
                 </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {choices.map((c, i) => (
                         <button key={c.id || i} onClick={() => selectPartner(c.id)}
                             className="bg-gray-900 hover:bg-purple-700 border border-gray-800 hover:border-purple-500 p-5 rounded-[1.5rem] transition-all flex flex-col items-center gap-4 active:scale-95 group">
                             <div className="relative">
                                 <img src={c.photo || generateAvatar(c.id || String(i))} className="w-20 h-20 rounded-2xl bg-gray-950 border-2 border-gray-800" />
-                                <div className={`absolute -bottom-1.5 -right-1.5 px-2 py-0.5 rounded-lg text-xs font-black shadow-lg ${c.gender === 'female' ? 'bg-pink-500' : c.gender === 'male' ? 'bg-blue-500' : 'bg-gray-700'}`}>
+                                <div className={`absolute -bottom-1.5 -right-1.5 px-2 py-0.5 rounded-lg text-xs font-black ${c.gender === 'female' ? 'bg-pink-500' : c.gender === 'male' ? 'bg-blue-500' : 'bg-gray-700'}`}>
                                     {c.gender === 'female' ? '♀' : c.gender === 'male' ? '♂' : '?'}
                                 </div>
                             </div>
                             <div className="text-center">
-                                <p className="font-black text-sm group-hover:text-white truncate max-w-[120px]">{c.name}</p>
+                                <p className="font-black text-sm group-hover:text-white">{c.name}</p>
                                 <p className="text-[10px] text-gray-600 group-hover:text-purple-200 uppercase font-bold">{c.gender || '—'}</p>
                             </div>
-                            <div className="w-full py-2 bg-gray-950 group-hover:bg-white group-hover:text-purple-700 rounded-xl text-[9px] font-black uppercase tracking-widest transition-colors">
-                                Connect
-                            </div>
+                            <div className="w-full py-2 bg-gray-950 group-hover:bg-white group-hover:text-purple-700 rounded-xl text-[9px] font-black uppercase tracking-widest transition-colors">Connect</div>
                         </button>
                     ))}
                 </div>
-
-                <button onClick={() => { if (timerRef.current) clearInterval(timerRef.current); setStatus('idle'); }}
-                    className="w-full py-3 bg-gray-900 border border-gray-800 rounded-xl font-bold text-sm text-gray-500 hover:text-white hover:bg-gray-800 transition-all">
-                    Cancel
-                </button>
+                <button onClick={() => { if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; } setStatus('idle'); }}
+                    className="w-full py-3 bg-gray-900 border border-gray-800 rounded-xl font-bold text-sm text-gray-500 hover:text-white hover:bg-gray-800 transition-all">Cancel</button>
             </div>
         </div>
     );
 
     // ─────────────────────────────────────────────────────────────────
-    // RENDER: CHATTING
+    // CHATTING
     // ─────────────────────────────────────────────────────────────────
     const myId = myIdRef.current || profile?.customId;
 
     return (
-        <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-base, #050505)' }}>
-
+        <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-base,#050505)' }}>
             {/* Header */}
-            <div style={{ flexShrink: 0, borderBottom: '1px solid var(--border, #111)', background: 'rgba(5,5,5,0.97)', backdropFilter: 'blur(12px)', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>
+            <div style={{ flexShrink: 0, borderBottom: '1px solid #111', background: 'rgba(5,5,5,0.97)', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
                     <img src={partner?.photo || generateAvatar('x')} style={{ width: 38, height: 38, borderRadius: 12, border: '2px solid #222', flexShrink: 0, background: '#111' }} loading="lazy" />
                     <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 900, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div style={{ fontWeight: 900, fontSize: 14, display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {partner?.name || 'Connecting...'}
                             {partner?.gender === 'female' && <span style={{ color: '#f472b6', fontSize: 11, flexShrink: 0 }}>♀</span>}
                             {partner?.gender === 'male' && <span style={{ color: '#60a5fa', fontSize: 11, flexShrink: 0 }}>♂</span>}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
-                            <span style={{
-                                width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-                                background: partner?.status === 'online' ? '#22c55e' : partner?.status === 'left' ? '#ef4444' : '#444',
-                            }} />
+                            <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: partner?.status === 'online' ? '#22c55e' : partner?.status === 'left' ? '#ef4444' : '#444' }} />
                             <span style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: partner?.status === 'online' ? '#22c55e' : partner?.status === 'left' ? '#ef4444' : '#555' }}>
                                 {partner?.status === 'online' ? 'Online' : partner?.status === 'left' ? 'Left chat' : 'Joining...'}
                             </span>
@@ -536,7 +448,7 @@ export default function Chat1on1() {
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexShrink: 0, marginLeft: 8 }}>
-                    <button onClick={handleNext} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '7px 14px', background: 'var(--accent, #7c3aed)', borderRadius: 12, fontWeight: 900, fontSize: 12, border: 'none', color: '#fff', cursor: 'pointer' }}>
+                    <button onClick={handleNext} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '7px 14px', background: 'var(--accent,#7c3aed)', borderRadius: 12, fontWeight: 900, fontSize: 12, border: 'none', color: '#fff', cursor: 'pointer' }}>
                         Next <ChevronRight style={{ width: 13, height: 13 }} />
                     </button>
                     <button onClick={handleLeave} style={{ padding: 8, background: '#111', border: '1px solid #222', borderRadius: 12, cursor: 'pointer', color: '#666', display: 'flex', alignItems: 'center' }}>
@@ -555,20 +467,12 @@ export default function Chat1on1() {
                 )}
                 {messages.map((msg, i) => {
                     if (msg.type === 'system') return (
-                        <div key={msg.id || i} style={{ textAlign: 'center', padding: '8px 0', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', color: '#333' }}>
-                            — {msg.text} —
-                        </div>
+                        <div key={msg.id || i} style={{ textAlign: 'center', padding: '8px 0', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', color: '#333' }}>— {msg.text} —</div>
                     );
                     const isMe = msg.senderId === myId;
                     return (
                         <div key={msg.id || i} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
-                            <div style={{
-                                maxWidth: '80%', padding: '10px 14px',
-                                borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                                background: isMe ? 'var(--accent, #7c3aed)' : '#111',
-                                border: isMe ? 'none' : '1px solid #1f1f1f',
-                                color: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.4)'
-                            }}>
+                            <div style={{ maxWidth: '80%', padding: '10px 14px', borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px', background: isMe ? 'var(--accent,#7c3aed)' : '#111', border: isMe ? 'none' : '1px solid #1f1f1f', color: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
                                 <p style={{ fontSize: 14, lineHeight: 1.5, wordBreak: 'break-word', margin: 0 }}>{msg.text}</p>
                                 <p style={{ fontSize: 9, marginTop: 4, opacity: 0.4, textAlign: 'right', fontFamily: 'monospace' }}>
                                     {msg.ts ? new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
@@ -581,16 +485,16 @@ export default function Chat1on1() {
             </div>
 
             {/* Input */}
-            <div style={{ flexShrink: 0, padding: '10px 12px', paddingBottom: 'max(10px, env(safe-area-inset-bottom, 10px))', background: '#0a0a0a', borderTop: '1px solid #111' }}>
+            <div style={{ flexShrink: 0, padding: '10px 12px', paddingBottom: 'max(10px,env(safe-area-inset-bottom,10px))', background: '#0a0a0a', borderTop: '1px solid #111' }}>
                 <form onSubmit={sendMessage} style={{ display: 'flex', gap: 8, maxWidth: 720, margin: '0 auto' }}>
-                    <input
-                        type="text" value={inputText} onChange={e => setInputText(e.target.value)}
+                    <input type="text" value={inputText} onChange={e => setInputText(e.target.value)}
                         placeholder="Type a message..." autoComplete="off" autoCorrect="off" spellCheck={false} maxLength={500}
                         style={{ flex: 1, minWidth: 0, background: '#111', border: '1px solid #222', borderRadius: 18, padding: '12px 16px', fontSize: 14, color: '#fff', outline: 'none', fontFamily: 'inherit' }}
-                        onFocus={e => e.target.style.borderColor = 'var(--accent, #7c3aed)'}
+                        onFocus={e => e.target.style.borderColor = 'var(--accent,#7c3aed)'}
                         onBlur={e => e.target.style.borderColor = '#222'}
                     />
-                    <button type="submit" disabled={!inputText.trim()} style={{ padding: '12px 16px', background: 'var(--accent, #7c3aed)', border: 'none', borderRadius: 18, cursor: 'pointer', color: '#fff', flexShrink: 0, opacity: inputText.trim() ? 1 : 0.4, display: 'flex', alignItems: 'center' }}>
+                    <button type="submit" disabled={!inputText.trim()}
+                        style={{ padding: '12px 16px', background: 'var(--accent,#7c3aed)', border: 'none', borderRadius: 18, cursor: 'pointer', color: '#fff', flexShrink: 0, opacity: inputText.trim() ? 1 : 0.4, display: 'flex', alignItems: 'center' }}>
                         <Send style={{ width: 18, height: 18 }} />
                     </button>
                 </form>
