@@ -10,11 +10,12 @@ import { AuthProvider } from './context/AuthContext';
 const Layout = ({ children }) => {
     const location = useLocation();
     const isAdmin = location.pathname.startsWith('/adminxakshat');
+    const isChat = location.pathname === '/chat';
 
     return (
         <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-purple-500/30">
             {children}
-            {!isAdmin && <Navbar />}
+            {!isAdmin && !isChat && <Navbar />}
         </div>
     );
 };
