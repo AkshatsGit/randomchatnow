@@ -70,6 +70,7 @@ export default function Chat1on1() {
     const { profile } = useAuth();
 
     const [status, setStatus] = useState('idle');
+    const [chatRoomId, setChatRoomId] = useState(null); // drives message listener via useEffect
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState('');
     const [partner, setPartner] = useState(null);
@@ -81,41 +82,58 @@ export default function Chat1on1() {
 
     const endRef = useRef(null);
     const roomIdRef = useRef(null);
-    const myIdRef = useRef(null);     // set when we join queue (standard only)
+    const myIdRef = useRef(null);
     const queueUnsubRef = useRef(null);
-    const msgUnsubRef = useRef(null);
-    const memUnsubRef = useRef(null);
     const timerRef = useRef(null);
     const isActiveRef = useRef(false);
 
     useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
+    // ── React-idiomatic room listener: fires whenever chatRoomId state changes ──
+    // This eliminates ALL stale closure bugs — effect always runs with fresh values
     useEffect(() => {
+        if (!chatRoomId || !profile?.customId) return;
+        const uid = myIdRef.current || profile.customId;
+        const roomId = chatRoomId;
+
+        // Write self as member
+        const myMemberRef = ref(rtdb, `chats/${roomId}/members/${uid}`);
+        set(myMemberRef, {
+            status: 'online',
+            name: profile.displayName || 'Stranger',
+            photo: profile.photoURL || generateAvatar(uid),
+            gender: profile.gender || 'unknown',
+            joinedAt: Date.now()
+        }).catch(() => { });
+        onDisconnect(myMemberRef).update({ status: 'offline' });
+
+        // System message
+        push(ref(rtdb, `chats/${roomId}/messages`), {
+            type: 'system', text: '🔗 Connected! Say hello 👋', ts: Date.now()
+        }).catch(() => { });
+
+        // Member listener
+        const memUnsub = onValue(ref(rtdb, `chats/${roomId}/members`), snap => {
+            if (!snap.exists()) return;
+            Object.entries(snap.val()).forEach(([id, data]) => {
+                if (id !== uid) setPartner(prev => ({ ...prev, id, ...data }));
+            });
+        });
+
+        // Message listener
+        const msgUnsub = onValue(ref(rtdb, `chats/${roomId}/messages`), snap => {
+            const msgs = [];
+            snap.forEach(c => msgs.push({ id: c.key, ...c.val() }));
+            setMessages(msgs.slice(-MAX_MSGS));
+        });
+
         return () => {
-            isActiveRef.current = false;
-            _hardCleanup();
+            memUnsub();
+            msgUnsub();
         };
-        // eslint-disable-next-line
-    }, []);
-
-    // ── Helpers ──────────────────────────────────────────────────────
-    const _stopListeners = () => {
-        if (queueUnsubRef.current) { queueUnsubRef.current(); queueUnsubRef.current = null; }
-        if (msgUnsubRef.current) { msgUnsubRef.current(); msgUnsubRef.current = null; }
-        if (memUnsubRef.current) { memUnsubRef.current(); memUnsubRef.current = null; }
-        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-    };
-
-    const _hardCleanup = () => {
-        _stopListeners();
-        const mid = myIdRef.current;
-        if (mid) remove(ref(rtdb, `queue/1on1/${mid}`)).catch(() => { });
-        const rid = roomIdRef.current;
-        const uid = myIdRef.current || profile?.customId;
-        if (rid && uid) update(ref(rtdb, `chats/${rid}/members/${uid}`), { status: 'offline' }).catch(() => { });
-        roomIdRef.current = null;
-        myIdRef.current = null;
-    };
+        // profile.customId ensures fresh uid; chatRoomId drives the whole effect
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chatRoomId]);
 
     const _resetState = () => {
         setPartner(null);
@@ -303,54 +321,16 @@ export default function Chat1on1() {
         }
     };
 
-    // ─────────────────────────────────────────────────────────────────
-    // ENTER ROOM — sets up message & member listeners
-    // ─────────────────────────────────────────────────────────────────
+    // enterRoom: just sets refs+state. The useEffect above handles Firebase listeners.
     const enterRoom = (roomId) => {
         const uid = myIdRef.current || profile?.customId;
-        if (!uid) return;
-
-        // Stop any old room listeners
-        if (msgUnsubRef.current) { msgUnsubRef.current(); msgUnsubRef.current = null; }
-        if (memUnsubRef.current) { memUnsubRef.current(); memUnsubRef.current = null; }
-
+        if (!uid || !roomId) return;
         roomIdRef.current = roomId;
         myIdRef.current = uid;
-        setStatus('chatting');
         setMessages([]);
         setPartner(null);
-
-        const myMemberRef = ref(rtdb, `chats/${roomId}/members/${uid}`);
-        set(myMemberRef, {
-            status: 'online',
-            name: profile?.displayName || 'Stranger',
-            photo: profile?.photoURL || generateAvatar(uid),
-            gender: profile?.gender || 'unknown',
-            joinedAt: Date.now()
-        }).catch(() => { });
-        onDisconnect(myMemberRef).update({ status: 'offline' });
-
-        // Listen for partner joining/leaving
-        memUnsubRef.current = onValue(ref(rtdb, `chats/${roomId}/members`), snap => {
-            if (!snap.exists()) return;
-            Object.entries(snap.val()).forEach(([id, data]) => {
-                if (id !== uid) setPartner(prev => ({ ...prev, id, ...data }));
-            });
-        });
-
-        // Listen for messages
-        msgUnsubRef.current = onValue(ref(rtdb, `chats/${roomId}/messages`), snap => {
-            const msgs = [];
-            snap.forEach(c => msgs.push({ id: c.key, ...c.val() }));
-            setMessages(msgs.slice(-MAX_MSGS));
-        });
-
-        // System hello message
-        push(ref(rtdb, `chats/${roomId}/messages`), {
-            type: 'system',
-            text: '🔗 Connected! Say hello 👋',
-            ts: Date.now()
-        }).catch(() => { });
+        setChatRoomId(roomId); // ← triggers the useEffect
+        setStatus('chatting');
     };
 
     // ─────────────────────────────────────────────────────────────────
@@ -367,12 +347,16 @@ export default function Chat1on1() {
             }
             update(ref(rtdb, `chats/${rid}/members/${uid}`), { status: 'left' }).catch(() => { });
         }
-        _stopListeners();
+        // Stop queue listener + timer
+        if (queueUnsubRef.current) { queueUnsubRef.current(); queueUnsubRef.current = null; }
+        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
         if (myIdRef.current) remove(ref(rtdb, `queue/1on1/${myIdRef.current}`)).catch(() => { });
         roomIdRef.current = null;
         myIdRef.current = null;
+        setChatRoomId(null); // ← triggers useEffect cleanup (unsubscribes msg+mem listeners)
         setPartner(null);
         setMessages([]);
+        isActiveRef.current = false;
     };
 
     const handleLeave = () => { doExit(); setStatus('idle'); };
