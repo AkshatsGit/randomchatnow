@@ -11,6 +11,7 @@ import { generateAvatar } from '../utils/helpers';
 
 const PREMIUM_CODE = 'AKSHAT';
 const MAX_MSGS = 150;
+const NO_ONE_MSG = 'No one is in the queue right now. Try standard or wait.';
 
 // ─── Premium Modal ────────────────────────────────────────────────────────────
 const PremiumModal = ({ onClose, onUnlock }) => {
@@ -20,54 +21,42 @@ const PremiumModal = ({ onClose, onUnlock }) => {
 
     const submit = (e) => {
         e.preventDefault();
-        if (code.trim().toUpperCase() === PREMIUM_CODE) {
-            setOk(true);
-            setTimeout(onUnlock, 700);
-        } else {
-            setErr('Invalid code. Try again.');
-            setCode('');
-        }
+        if (code.trim().toUpperCase() === PREMIUM_CODE) { setOk(true); setTimeout(onUnlock, 700); }
+        else { setErr('Invalid code. Try again.'); setCode(''); }
     };
 
     return (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
             <div className="w-full max-w-sm bg-gray-950 border border-gray-800 rounded-[2rem] p-7 space-y-6 relative overflow-hidden" onClick={e => e.stopPropagation()}>
                 <div className="absolute -top-10 -right-10 w-40 h-40 bg-yellow-500/5 rounded-full blur-2xl pointer-events-none" />
-                <button onClick={onClose} className="absolute top-5 right-5 text-gray-600 hover:text-white transition-colors">
-                    <X className="w-5 h-5" />
-                </button>
+                <button onClick={onClose} className="absolute top-5 right-5 text-gray-600 hover:text-white"><X className="w-5 h-5" /></button>
                 <div className="flex flex-col items-center gap-3 text-center">
                     <div className="p-4 bg-yellow-500/10 rounded-2xl"><Crown className="w-10 h-10 text-yellow-400" /></div>
                     <h2 className="text-2xl font-black">Premium Filter</h2>
                     <p className="text-gray-500 text-xs leading-relaxed max-w-xs">
-                        Pick from <span className="text-purple-400 font-bold">3 live users</span>. Opposite gender shown first.
+                        Pick from <span className="text-purple-400 font-bold">3 live people</span> in the queue. Opposite gender shown first.
                     </p>
                 </div>
-
                 <a href="#" className="block w-full py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 rounded-xl font-black text-center text-black text-sm uppercase tracking-widest active:scale-95 transition-all">
                     ⚡ Buy Premium — ₹10
                 </a>
-
                 <div className="flex items-center gap-3">
                     <div className="flex-1 h-px bg-gray-800" />
                     <span className="text-[9px] text-gray-600 font-black uppercase tracking-widest whitespace-nowrap">or have a code?</span>
                     <div className="flex-1 h-px bg-gray-800" />
                 </div>
-
                 <form onSubmit={submit} className="space-y-3">
                     <div className="relative">
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
-                        <input
-                            value={code}
-                            onChange={e => { setCode(e.target.value); setErr(''); }}
+                        <input value={code} onChange={e => { setCode(e.target.value); setErr(''); }}
                             placeholder="Enter premium code..."
-                            autoComplete="off"
                             className="w-full bg-gray-900 border border-gray-800 focus:border-purple-500 rounded-xl py-3.5 pl-11 pr-4 outline-none text-center font-mono uppercase tracking-widest text-sm transition-colors"
                         />
                     </div>
                     {err && <p className="text-red-500 text-xs text-center font-bold">{err}</p>}
-                    {ok && <p className="text-green-500 text-xs text-center font-bold flex items-center justify-center gap-1"><Check className="w-3 h-3" /> Code accepted! Unlocking...</p>}
-                    <button type="submit" disabled={!code.trim() || ok} className="w-full py-3.5 bg-purple-600 hover:bg-purple-500 rounded-xl font-black uppercase tracking-widest text-sm transition-all disabled:opacity-40 active:scale-95">
+                    {ok && <p className="text-green-500 text-xs text-center font-bold flex items-center justify-center gap-1"><Check className="w-3 h-3" /> Unlocked!</p>}
+                    <button type="submit" disabled={!code.trim() || ok}
+                        className="w-full py-3.5 bg-purple-600 hover:bg-purple-500 rounded-xl font-black uppercase tracking-widest text-sm transition-all disabled:opacity-40 active:scale-95">
                         {ok ? '✓ Unlocked!' : 'Activate Code'}
                     </button>
                 </form>
@@ -76,11 +65,11 @@ const PremiumModal = ({ onClose, onUnlock }) => {
     );
 };
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function Chat1on1() {
     const { profile } = useAuth();
 
-    const [status, setStatus] = useState('idle'); // idle | finding | matching | chatting
+    const [status, setStatus] = useState('idle');
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState('');
     const [partner, setPartner] = useState(null);
@@ -88,79 +77,90 @@ export default function Chat1on1() {
     const [choiceTimer, setChoiceTimer] = useState(15);
     const [isPremium, setIsPremium] = useState(() => localStorage.getItem('rch_premium') === 'true');
     const [showModal, setShowModal] = useState(false);
+    const [scanError, setScanError] = useState('');
 
     const endRef = useRef(null);
-    // All mutable state that the queue listener needs lives in refs to avoid stale closures
     const roomIdRef = useRef(null);
-    const myIdRef = useRef(null);
+    const myIdRef = useRef(null);     // set when we join queue (standard only)
     const queueUnsubRef = useRef(null);
     const msgUnsubRef = useRef(null);
     const memUnsubRef = useRef(null);
     const timerRef = useRef(null);
     const isActiveRef = useRef(false);
 
-    useEffect(() => {
-        endRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+    useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-    // Unmount cleanup
     useEffect(() => {
         return () => {
             isActiveRef.current = false;
-            cleanupAll(false);
+            _hardCleanup();
         };
         // eslint-disable-next-line
     }, []);
 
-    // ── Cleanup helpers ──────────────────────────────────────────────
-    const cleanupAll = (resetRoom = true) => {
+    // ── Helpers ──────────────────────────────────────────────────────
+    const _stopListeners = () => {
         if (queueUnsubRef.current) { queueUnsubRef.current(); queueUnsubRef.current = null; }
         if (msgUnsubRef.current) { msgUnsubRef.current(); msgUnsubRef.current = null; }
         if (memUnsubRef.current) { memUnsubRef.current(); memUnsubRef.current = null; }
         if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-        const mid = myIdRef.current;
-        if (mid) remove(ref(rtdb, `queue/1on1/${mid}`)).catch(() => { });
-        if (resetRoom) roomIdRef.current = null;
     };
 
-    // ── START SEARCH ─────────────────────────────────────────────────
-    const startSearch = (premium = false) => {
-        if (!profile?.customId) return;
-        cleanupAll();
-        isActiveRef.current = true;
-        myIdRef.current = profile.customId;
+    const _hardCleanup = () => {
+        _stopListeners();
+        const mid = myIdRef.current;
+        if (mid) remove(ref(rtdb, `queue/1on1/${mid}`)).catch(() => { });
+        const rid = roomIdRef.current;
+        const uid = myIdRef.current || profile?.customId;
+        if (rid && uid) update(ref(rtdb, `chats/${rid}/members/${uid}`), { status: 'offline' }).catch(() => { });
+        roomIdRef.current = null;
+        myIdRef.current = null;
+    };
+
+    const _resetState = () => {
         setPartner(null);
         setMessages([]);
         setChoices([]);
+        setScanError('');
+    };
+
+    // ─────────────────────────────────────────────────────────────────
+    // STANDARD SEARCH — user joins queue, waits for roomId signal
+    // ─────────────────────────────────────────────────────────────────
+    const startStandardSearch = () => {
+        const uid = profile?.customId;
+        if (!uid) return;
+        _hardCleanup();
+        _resetState();
+        isActiveRef.current = true;
+        myIdRef.current = uid;
         setStatus('finding');
 
-        const myId = profile.customId;
-        const qRef = ref(rtdb, `queue/1on1/${myId}`);
+        const qRef = ref(rtdb, `queue/1on1/${uid}`);
         onDisconnect(qRef).remove();
 
         set(qRef, {
-            id: myId,
+            id: uid,
             name: profile.displayName || 'Stranger',
-            photo: profile.photoURL || generateAvatar(myId),
+            photo: profile.photoURL || generateAvatar(uid),
             gender: profile.gender || 'unknown',
             ts: Date.now()
         }).then(() => {
             if (!isActiveRef.current) return;
 
-            // Listen to the WHOLE queue — fires whenever any entry changes
-            queueUnsubRef.current = onValue(ref(rtdb, 'queue/1on1'), (snap) => {
+            // Watch the entire queue for a roomId signal or matchmaking opportunity
+            queueUnsubRef.current = onValue(ref(rtdb, 'queue/1on1'), snap => {
                 if (!isActiveRef.current) return;
                 if (!snap.exists()) return;
 
                 const queue = snap.val();
-                const me = queue[myId];
+                const me = queue[uid];
                 if (!me) return;
 
-                // ✅ Someone matched me → enter room
+                // ✅ Partner wrote our roomId → enter room
                 if (me.roomId) {
                     isActiveRef.current = false;
                     const rid = me.roomId;
-                    // stop queue listener first (defer so we don't unsub inside callback)
                     setTimeout(() => {
                         if (queueUnsubRef.current) { queueUnsubRef.current(); queueUnsubRef.current = null; }
                         remove(qRef).catch(() => { });
@@ -169,62 +169,89 @@ export default function Chat1on1() {
                     return;
                 }
 
-                // ── Am I the matchmaker? I must be the OLDEST waiting user ──
-                const others = Object.entries(queue).filter(([id, e]) =>
-                    id !== myId && !e.roomId
+                // ── Am I the oldest (matchmaker)? ──
+                // Only match users who are NOT in premium-waiting state
+                const candidates = Object.entries(queue).filter(([id, e]) =>
+                    id !== uid &&
+                    !e.roomId &&
+                    !e.premiumWaiting   // skip premium-selecting users
                 );
-                if (others.length === 0) return;
+                if (!candidates.length) return;
 
                 const myTs = me.ts;
-                // I can only match if I'm older than all others (or tiebreak by id)
-                const canMatch = others.every(([oid, oe]) =>
-                    myTs < oe.ts || (myTs === oe.ts && myId < oid)
+                const canMatch = candidates.every(([oid, oe]) =>
+                    myTs < oe.ts || (myTs === oe.ts && uid < oid)
                 );
                 if (!canMatch) return;
 
-                if (premium) {
-                    // Show top 3 opposite-gender first
-                    const sorted = [...others].sort(([, a], [, b]) => {
-                        const opp = profile.gender === 'male' ? 'female' : 'male';
-                        if (a.gender === opp && b.gender !== opp) return -1;
-                        if (b.gender === opp && a.gender !== opp) return 1;
-                        return a.ts - b.ts;
-                    });
-                    const top3 = sorted.slice(0, 3).map(([, v]) => v);
-                    isActiveRef.current = false;
-                    setTimeout(() => {
-                        if (queueUnsubRef.current) { queueUnsubRef.current(); queueUnsubRef.current = null; }
-                        setChoices(top3);
-                        setStatus('matching');
-                        startTimer();
-                    }, 0);
-                    return;
-                }
-
-                // Standard: pick the newest waiter as partner
-                others.sort(([, a], [, b]) => b.ts - a.ts);
-                const [partnerId] = others[0];
+                // Pick newest candidate as partner
+                candidates.sort(([, a], [, b]) => b.ts - a.ts);
+                const [partnerId] = candidates[0];
                 const roomId = `room_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
 
-                // Mark as inactive BEFORE the async write so no double-match
                 isActiveRef.current = false;
 
                 update(ref(rtdb, 'queue/1on1'), {
-                    [`${myId}/roomId`]: roomId,
+                    [`${uid}/roomId`]: roomId,
                     [`${partnerId}/roomId`]: roomId,
                 }).then(() => {
-                    if (queueUnsubRef.current) { queueUnsubRef.current(); queueUnsubRef.current = null; }
-                    remove(qRef).catch(() => { });
-                    enterRoom(roomId);
-                }).catch(() => {
-                    // Write failed, retry
-                    isActiveRef.current = true;
-                });
+                    setTimeout(() => {
+                        if (queueUnsubRef.current) { queueUnsubRef.current(); queueUnsubRef.current = null; }
+                        remove(qRef).catch(() => { });
+                        enterRoom(roomId);
+                    }, 0);
+                }).catch(() => { isActiveRef.current = true; }); // retry on failure
             });
         }).catch(() => setStatus('idle'));
     };
 
-    // ── TIMER (premium) ──────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────
+    // PREMIUM SCAN — NEVER joins the queue. Reads a snapshot only.
+    // The queued person stays in the queue, waits for their roomId signal.
+    // ─────────────────────────────────────────────────────────────────
+    const startPremiumScan = async () => {
+        _hardCleanup();
+        _resetState();
+        setScanError('');
+        setStatus('finding');
+
+        try {
+            const snap = await get(ref(rtdb, 'queue/1on1'));
+            const uid = profile?.customId;
+
+            if (!snap.exists()) {
+                setScanError(NO_ONE_MSG);
+                setStatus('idle');
+                return;
+            }
+
+            const queue = snap.val();
+            const candidates = Object.entries(queue)
+                .filter(([id, e]) => id !== uid && !e.roomId)
+                .sort(([, a], [, b]) => {
+                    const opp = profile?.gender === 'male' ? 'female' : 'male';
+                    if (a.gender === opp && b.gender !== opp) return -1;
+                    if (b.gender === opp && a.gender !== opp) return 1;
+                    return a.ts - b.ts;
+                })
+                .slice(0, 3)
+                .map(([, v]) => v);
+
+            if (!candidates.length) {
+                setScanError(NO_ONE_MSG);
+                setStatus('idle');
+                return;
+            }
+
+            setChoices(candidates);
+            setStatus('matching');
+            startTimer();
+        } catch (e) {
+            setScanError('Scan failed. Please try again.');
+            setStatus('idle');
+        }
+    };
+
     const startTimer = () => {
         setChoiceTimer(15);
         if (timerRef.current) clearInterval(timerRef.current);
@@ -233,7 +260,6 @@ export default function Chat1on1() {
                 if (prev <= 1) {
                     clearInterval(timerRef.current);
                     timerRef.current = null;
-                    if (myIdRef.current) remove(ref(rtdb, `queue/1on1/${myIdRef.current}`)).catch(() => { });
                     setStatus('idle');
                     return 0;
                 }
@@ -242,61 +268,84 @@ export default function Chat1on1() {
         }, 1000);
     };
 
-    // ── SELECT PARTNER (premium) ─────────────────────────────────────
-    const selectPartner = (partnerId) => {
+    // ─────────────────────────────────────────────────────────────────
+    // SELECT PARTNER (premium) — verify partner still free, then match
+    // ─────────────────────────────────────────────────────────────────
+    const selectPartner = async (partnerId) => {
         if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-        const myId = myIdRef.current;
-        if (!myId) return;
-        const roomId = `room_p_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-        update(ref(rtdb, 'queue/1on1'), {
-            [`${myId}/roomId`]: roomId,
-            [`${partnerId}/roomId`]: roomId,
-        }).then(() => {
-            remove(ref(rtdb, `queue/1on1/${myId}`)).catch(() => { });
+        const uid = profile?.customId;
+        if (!uid || !partnerId) return;
+
+        setStatus('finding'); // show spinner while we verify
+
+        try {
+            // Verify partner is still waiting (not already matched)
+            const partnerSnap = await get(ref(rtdb, `queue/1on1/${partnerId}`));
+            if (!partnerSnap.exists() || partnerSnap.val()?.roomId) {
+                setScanError('That person just matched with someone else. Rescanning...');
+                setTimeout(() => startPremiumScan(), 1500);
+                return;
+            }
+
+            const roomId = `room_p_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+
+            // Write roomId to partner — their queue listener will pick it up and enter room
+            await update(ref(rtdb, 'queue/1on1'), {
+                [`${partnerId}/roomId`]: roomId,
+            });
+
+            // Premium user was NOT in queue, so we go straight to enterRoom
+            myIdRef.current = uid;
             enterRoom(roomId);
-        }).catch(() => setStatus('idle'));
+        } catch (e) {
+            console.error('selectPartner failed:', e);
+            setStatus('idle');
+        }
     };
 
-    // ── ENTER ROOM ───────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────
+    // ENTER ROOM — sets up message & member listeners
+    // ─────────────────────────────────────────────────────────────────
     const enterRoom = (roomId) => {
-        const myId = myIdRef.current || profile?.customId;
-        if (!myId) return;
+        const uid = myIdRef.current || profile?.customId;
+        if (!uid) return;
 
-        // Stop any existing room listeners
+        // Stop any old room listeners
         if (msgUnsubRef.current) { msgUnsubRef.current(); msgUnsubRef.current = null; }
         if (memUnsubRef.current) { memUnsubRef.current(); memUnsubRef.current = null; }
 
         roomIdRef.current = roomId;
+        myIdRef.current = uid;
         setStatus('chatting');
         setMessages([]);
         setPartner(null);
 
-        const myMemberRef = ref(rtdb, `chats/${roomId}/members/${myId}`);
+        const myMemberRef = ref(rtdb, `chats/${roomId}/members/${uid}`);
         set(myMemberRef, {
             status: 'online',
             name: profile?.displayName || 'Stranger',
-            photo: profile?.photoURL || generateAvatar(myId),
+            photo: profile?.photoURL || generateAvatar(uid),
             gender: profile?.gender || 'unknown',
             joinedAt: Date.now()
         }).catch(() => { });
         onDisconnect(myMemberRef).update({ status: 'offline' });
 
-        // Members listener
-        memUnsubRef.current = onValue(ref(rtdb, `chats/${roomId}/members`), (snap) => {
+        // Listen for partner joining/leaving
+        memUnsubRef.current = onValue(ref(rtdb, `chats/${roomId}/members`), snap => {
             if (!snap.exists()) return;
             Object.entries(snap.val()).forEach(([id, data]) => {
-                if (id !== myId) setPartner(prev => ({ ...prev, id, ...data }));
+                if (id !== uid) setPartner(prev => ({ ...prev, id, ...data }));
             });
         });
 
-        // Messages listener
-        msgUnsubRef.current = onValue(ref(rtdb, `chats/${roomId}/messages`), (snap) => {
+        // Listen for messages
+        msgUnsubRef.current = onValue(ref(rtdb, `chats/${roomId}/messages`), snap => {
             const msgs = [];
-            snap.forEach(child => msgs.push({ id: child.key, ...child.val() }));
+            snap.forEach(c => msgs.push({ id: c.key, ...c.val() }));
             setMessages(msgs.slice(-MAX_MSGS));
         });
 
-        // System message
+        // System hello message
         push(ref(rtdb, `chats/${roomId}/messages`), {
             type: 'system',
             text: '🔗 Connected! Say hello 👋',
@@ -304,38 +353,43 @@ export default function Chat1on1() {
         }).catch(() => { });
     };
 
-    // ── LEAVE / NEXT ─────────────────────────────────────────────────
-    const doLeave = (leaveMsg = true) => {
+    // ─────────────────────────────────────────────────────────────────
+    // EXIT / NEXT
+    // ─────────────────────────────────────────────────────────────────
+    const doExit = (withMsg = true) => {
         const rid = roomIdRef.current;
-        const myId = myIdRef.current || profile?.customId;
-        if (rid && myId) {
-            if (leaveMsg) {
+        const uid = myIdRef.current || profile?.customId;
+        if (rid && uid) {
+            if (withMsg) {
                 push(ref(rtdb, `chats/${rid}/messages`), {
-                    type: 'system',
-                    text: `${profile?.displayName || 'Stranger'} left the chat.`,
-                    ts: Date.now()
+                    type: 'system', text: `${profile?.displayName || 'Stranger'} left.`, ts: Date.now()
                 }).catch(() => { });
             }
-            update(ref(rtdb, `chats/${rid}/members/${myId}`), { status: 'left' }).catch(() => { });
+            update(ref(rtdb, `chats/${rid}/members/${uid}`), { status: 'left' }).catch(() => { });
         }
-        cleanupAll();
+        _stopListeners();
+        if (myIdRef.current) remove(ref(rtdb, `queue/1on1/${myIdRef.current}`)).catch(() => { });
+        roomIdRef.current = null;
+        myIdRef.current = null;
         setPartner(null);
         setMessages([]);
     };
 
-    const handleLeave = () => { doLeave(); setStatus('idle'); };
-    const handleNext = () => { doLeave(); setTimeout(() => startSearch(false), 50); };
+    const handleLeave = () => { doExit(); setStatus('idle'); };
+    const handleNext = () => { doExit(); setTimeout(() => startStandardSearch(), 80); };
 
-    // ── SEND MESSAGE ─────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────
+    // SEND MESSAGE
+    // ─────────────────────────────────────────────────────────────────
     const sendMessage = (e) => {
         e.preventDefault();
         const rid = roomIdRef.current;
-        const myId = myIdRef.current || profile?.customId;
+        const uid = myIdRef.current || profile?.customId;
         const text = inputText.trim();
-        if (!text || !rid || !myId) return;
+        if (!text || !rid || !uid) return;
         push(ref(rtdb, `chats/${rid}/messages`), {
-            senderId: myId,
-            senderName: profile?.displayName || 'Stranger',
+            senderId: uid,
+            senderName: profile?.displayName || 'You',
             text,
             ts: Date.now()
         }).catch(err => console.error('Send failed:', err));
@@ -346,7 +400,7 @@ export default function Chat1on1() {
         setIsPremium(true);
         localStorage.setItem('rch_premium', 'true');
         setShowModal(false);
-        setTimeout(() => startSearch(true), 100);
+        setTimeout(() => startPremiumScan(), 100);
     };
 
     // ─────────────────────────────────────────────────────────────────
@@ -364,10 +418,15 @@ export default function Chat1on1() {
                     <p className="text-gray-500 text-sm font-medium">
                         {profile?.displayName ? `Ready, ${profile.displayName}?` : 'Find your random match.'}
                     </p>
+                    {scanError && (
+                        <p className="text-yellow-500 text-xs font-bold bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-4 py-2">
+                            {scanError}
+                        </p>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg">
-                    <button onClick={() => startSearch(false)}
+                    <button onClick={startStandardSearch}
                         className="group p-8 bg-gray-900 border border-gray-800 hover:border-purple-500/50 rounded-[1.5rem] text-left space-y-4 transition-all active:scale-[0.97]">
                         <RefreshCw className="w-7 h-7 text-gray-600 group-hover:text-purple-400 group-hover:rotate-180 transition-all duration-500" />
                         <div>
@@ -376,7 +435,7 @@ export default function Chat1on1() {
                         </div>
                     </button>
 
-                    <button onClick={() => { if (isPremium) startSearch(true); else setShowModal(true); }}
+                    <button onClick={() => { if (isPremium) startPremiumScan(); else setShowModal(true); }}
                         className="group p-8 bg-yellow-500/5 border border-yellow-500/20 hover:border-yellow-400/50 rounded-[1.5rem] text-left space-y-4 transition-all active:scale-[0.97] relative overflow-hidden">
                         <div className="absolute -top-4 -right-4 opacity-5 group-hover:opacity-10 transition-opacity pointer-events-none">
                             <Heart className="w-24 h-24 text-yellow-400" />
@@ -408,9 +467,9 @@ export default function Chat1on1() {
             </div>
             <div className="text-center">
                 <h3 className="text-xl font-black uppercase tracking-widest">Scanning...</h3>
-                <p className="text-gray-600 text-xs mt-2 font-mono uppercase tracking-widest">Waiting for a match</p>
+                <p className="text-gray-600 text-xs mt-2 font-mono">Waiting for a match</p>
             </div>
-            <button onClick={() => { isActiveRef.current = false; cleanupAll(); setStatus('idle'); }}
+            <button onClick={() => { isActiveRef.current = false; _hardCleanup(); setStatus('idle'); }}
                 className="px-6 py-2.5 bg-gray-900 border border-gray-800 hover:bg-gray-800 rounded-xl font-bold text-sm transition-all active:scale-95">
                 Cancel
             </button>
@@ -418,7 +477,7 @@ export default function Chat1on1() {
     );
 
     // ─────────────────────────────────────────────────────────────────
-    // RENDER: MATCHING (premium pick)
+    // RENDER: MATCHING (premium picker)
     // ─────────────────────────────────────────────────────────────────
     if (status === 'matching') return (
         <div className="flex flex-col items-center justify-center min-h-screen p-4">
@@ -436,16 +495,16 @@ export default function Chat1on1() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {choices.map((c, i) => (
-                        <button key={i} onClick={() => selectPartner(c.id)}
+                        <button key={c.id || i} onClick={() => selectPartner(c.id)}
                             className="bg-gray-900 hover:bg-purple-700 border border-gray-800 hover:border-purple-500 p-5 rounded-[1.5rem] transition-all flex flex-col items-center gap-4 active:scale-95 group">
                             <div className="relative">
                                 <img src={c.photo || generateAvatar(c.id || String(i))} className="w-20 h-20 rounded-2xl bg-gray-950 border-2 border-gray-800" />
-                                <div className={`absolute -bottom-1.5 -right-1.5 px-2 py-0.5 rounded-lg text-xs font-black shadow-lg ${c.gender === 'female' ? 'bg-pink-500' : c.gender === 'male' ? 'bg-blue-500' : 'bg-gray-600'}`}>
+                                <div className={`absolute -bottom-1.5 -right-1.5 px-2 py-0.5 rounded-lg text-xs font-black shadow-lg ${c.gender === 'female' ? 'bg-pink-500' : c.gender === 'male' ? 'bg-blue-500' : 'bg-gray-700'}`}>
                                     {c.gender === 'female' ? '♀' : c.gender === 'male' ? '♂' : '?'}
                                 </div>
                             </div>
                             <div className="text-center">
-                                <p className="font-black text-sm group-hover:text-white">{c.name}</p>
+                                <p className="font-black text-sm group-hover:text-white truncate max-w-[120px]">{c.name}</p>
                                 <p className="text-[10px] text-gray-600 group-hover:text-purple-200 uppercase font-bold">{c.gender || '—'}</p>
                             </div>
                             <div className="w-full py-2 bg-gray-950 group-hover:bg-white group-hover:text-purple-700 rounded-xl text-[9px] font-black uppercase tracking-widest transition-colors">
@@ -455,7 +514,7 @@ export default function Chat1on1() {
                     ))}
                 </div>
 
-                <button onClick={() => { isActiveRef.current = false; cleanupAll(); setStatus('idle'); }}
+                <button onClick={() => { if (timerRef.current) clearInterval(timerRef.current); setStatus('idle'); }}
                     className="w-full py-3 bg-gray-900 border border-gray-800 rounded-xl font-bold text-sm text-gray-500 hover:text-white hover:bg-gray-800 transition-all">
                     Cancel
                 </button>
@@ -465,34 +524,26 @@ export default function Chat1on1() {
 
     // ─────────────────────────────────────────────────────────────────
     // RENDER: CHATTING
-    // Full screen, no navbar, input pinned to bottom
     // ─────────────────────────────────────────────────────────────────
     const myId = myIdRef.current || profile?.customId;
 
     return (
-        <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#050505' }}>
+        <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-base, #050505)' }}>
 
-            {/* ── Header ── */}
-            <div style={{ flexShrink: 0, borderBottom: '1px solid #111', background: 'rgba(5,5,5,0.97)', backdropFilter: 'blur(10px)', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
-                    <img
-                        src={partner?.photo || generateAvatar('x')}
-                        style={{ width: 38, height: 38, borderRadius: 12, border: '2px solid #222', flexShrink: 0, background: '#111' }}
-                        loading="lazy"
-                    />
+            {/* Header */}
+            <div style={{ flexShrink: 0, borderBottom: '1px solid var(--border, #111)', background: 'rgba(5,5,5,0.97)', backdropFilter: 'blur(12px)', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                    <img src={partner?.photo || generateAvatar('x')} style={{ width: 38, height: 38, borderRadius: 12, border: '2px solid #222', flexShrink: 0, background: '#111' }} loading="lazy" />
                     <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 900, fontSize: 14, display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {partner?.name || 'Connecting...'}
-                            </span>
+                        <div style={{ fontWeight: 900, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            {partner?.name || 'Connecting...'}
                             {partner?.gender === 'female' && <span style={{ color: '#f472b6', fontSize: 11, flexShrink: 0 }}>♀</span>}
                             {partner?.gender === 'male' && <span style={{ color: '#60a5fa', fontSize: 11, flexShrink: 0 }}>♂</span>}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
                             <span style={{
                                 width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-                                background: partner?.status === 'online' ? '#22c55e' : partner?.status === 'left' ? '#ef4444' : '#555',
-                                animation: partner?.status === 'online' ? 'pulse 1.5s infinite' : 'none'
+                                background: partner?.status === 'online' ? '#22c55e' : partner?.status === 'left' ? '#ef4444' : '#444',
                             }} />
                             <span style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: partner?.status === 'online' ? '#22c55e' : partner?.status === 'left' ? '#ef4444' : '#555' }}>
                                 {partner?.status === 'online' ? 'Online' : partner?.status === 'left' ? 'Left chat' : 'Joining...'}
@@ -501,16 +552,16 @@ export default function Chat1on1() {
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexShrink: 0, marginLeft: 8 }}>
-                    <button onClick={handleNext} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '7px 14px', background: '#7c3aed', borderRadius: 12, fontWeight: 900, fontSize: 12, border: 'none', color: '#fff', cursor: 'pointer' }}>
+                    <button onClick={handleNext} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '7px 14px', background: 'var(--accent, #7c3aed)', borderRadius: 12, fontWeight: 900, fontSize: 12, border: 'none', color: '#fff', cursor: 'pointer' }}>
                         Next <ChevronRight style={{ width: 13, height: 13 }} />
                     </button>
-                    <button onClick={handleLeave} style={{ padding: 8, background: '#111', border: '1px solid #222', borderRadius: 12, cursor: 'pointer', color: '#888', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <button onClick={handleLeave} style={{ padding: 8, background: '#111', border: '1px solid #222', borderRadius: 12, cursor: 'pointer', color: '#666', display: 'flex', alignItems: 'center' }}>
                         <LogOut style={{ width: 16, height: 16 }} />
                     </button>
                 </div>
             </div>
 
-            {/* ── Messages ── */}
+            {/* Messages */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, WebkitOverflowScrolling: 'touch' }}>
                 {messages.length === 0 && (
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: 0.15 }}>
@@ -520,7 +571,7 @@ export default function Chat1on1() {
                 )}
                 {messages.map((msg, i) => {
                     if (msg.type === 'system') return (
-                        <div key={msg.id || i} style={{ textAlign: 'center', padding: '10px 0', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', color: '#333' }}>
+                        <div key={msg.id || i} style={{ textAlign: 'center', padding: '8px 0', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', color: '#333' }}>
                             — {msg.text} —
                         </div>
                     );
@@ -528,13 +579,11 @@ export default function Chat1on1() {
                     return (
                         <div key={msg.id || i} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
                             <div style={{
-                                maxWidth: '80%',
-                                padding: '10px 14px',
+                                maxWidth: '80%', padding: '10px 14px',
                                 borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                                background: isMe ? '#7c3aed' : '#111',
+                                background: isMe ? 'var(--accent, #7c3aed)' : '#111',
                                 border: isMe ? 'none' : '1px solid #1f1f1f',
-                                color: isMe ? '#fff' : '#e5e5e5',
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.4)'
+                                color: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.4)'
                             }}>
                                 <p style={{ fontSize: 14, lineHeight: 1.5, wordBreak: 'break-word', margin: 0 }}>{msg.text}</p>
                                 <p style={{ fontSize: 9, marginTop: 4, opacity: 0.4, textAlign: 'right', fontFamily: 'monospace' }}>
@@ -547,38 +596,17 @@ export default function Chat1on1() {
                 <div ref={endRef} style={{ height: 1 }} />
             </div>
 
-            {/* ── Input ── */}
-            <div style={{
-                flexShrink: 0,
-                padding: '10px 12px',
-                paddingBottom: 'max(10px, env(safe-area-inset-bottom, 10px))',
-                background: '#0a0a0a',
-                borderTop: '1px solid #111'
-            }}>
+            {/* Input */}
+            <div style={{ flexShrink: 0, padding: '10px 12px', paddingBottom: 'max(10px, env(safe-area-inset-bottom, 10px))', background: '#0a0a0a', borderTop: '1px solid #111' }}>
                 <form onSubmit={sendMessage} style={{ display: 'flex', gap: 8, maxWidth: 720, margin: '0 auto' }}>
                     <input
-                        type="text"
-                        value={inputText}
-                        onChange={e => setInputText(e.target.value)}
-                        placeholder="Type a message..."
-                        autoComplete="off"
-                        autoCorrect="off"
-                        spellCheck={false}
-                        maxLength={500}
-                        style={{
-                            flex: 1, minWidth: 0,
-                            background: '#111', border: '1px solid #222',
-                            borderRadius: 18, padding: '12px 16px',
-                            fontSize: 14, color: '#fff', outline: 'none', fontFamily: 'inherit'
-                        }}
-                        onFocus={e => e.target.style.borderColor = '#7c3aed'}
+                        type="text" value={inputText} onChange={e => setInputText(e.target.value)}
+                        placeholder="Type a message..." autoComplete="off" autoCorrect="off" spellCheck={false} maxLength={500}
+                        style={{ flex: 1, minWidth: 0, background: '#111', border: '1px solid #222', borderRadius: 18, padding: '12px 16px', fontSize: 14, color: '#fff', outline: 'none', fontFamily: 'inherit' }}
+                        onFocus={e => e.target.style.borderColor = 'var(--accent, #7c3aed)'}
                         onBlur={e => e.target.style.borderColor = '#222'}
                     />
-                    <button type="submit" disabled={!inputText.trim()} style={{
-                        padding: '12px 16px', background: '#7c3aed', border: 'none',
-                        borderRadius: 18, cursor: 'pointer', color: '#fff', flexShrink: 0,
-                        opacity: inputText.trim() ? 1 : 0.4, display: 'flex', alignItems: 'center', justifyContent: 'center'
-                    }}>
+                    <button type="submit" disabled={!inputText.trim()} style={{ padding: '12px 16px', background: 'var(--accent, #7c3aed)', border: 'none', borderRadius: 18, cursor: 'pointer', color: '#fff', flexShrink: 0, opacity: inputText.trim() ? 1 : 0.4, display: 'flex', alignItems: 'center' }}>
                         <Send style={{ width: 18, height: 18 }} />
                     </button>
                 </form>
