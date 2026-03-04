@@ -31,7 +31,7 @@ export const AuthProvider = ({ children }) => {
                         isPremium: storedProfile?.isPremium || false,
                         isGoogle: !firebaseUser.isAnonymous,
                         lastIp: userIp,
-                        joinedAt: serverTimestamp()
+                        joinedAt: Date.now()
                     };
                     localStorage.setItem('randomchat_profile', JSON.stringify(storedProfile));
                 } else {
@@ -106,6 +106,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     const randomizeName = () => {
+        if (!profile) return;
         const newName = generateRandomName();
         const newAvatar = generateAvatar(newName + profile.uid);
         updateProfile({ displayName: newName, photoURL: newAvatar });

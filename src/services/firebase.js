@@ -1,3 +1,4 @@
+import { initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously, onAuthStateChanged, connectAuthEmulator, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { getDatabase, ref, set, get, update, onValue, onDisconnect, remove, push, connectDatabaseEmulator, serverTimestamp } from "firebase/database";
 import { getAnalytics, logEvent } from "firebase/analytics";
