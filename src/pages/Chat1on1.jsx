@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { rtdb, ref, push, set, onValue, update, remove, onDisconnect, get } from '../services/firebase';
+import { rtdb, ref, push, set, onValue, onChildAdded, update, remove, onDisconnect, get } from '../services/firebase';
 import { Send, LogOut, RefreshCw, MessageSquare, ChevronRight, Heart, Zap, Timer, Lock, Crown, Check, X, Sparkles } from 'lucide-react';
 import { generateAvatar } from '../utils/helpers';
 
@@ -105,12 +105,17 @@ export default function Chat1on1() {
             });
         });
 
-        // Message listener
-        const msgUnsub = onValue(ref(rtdb, `chats/${roomId}/messages`), snap => {
-            console.log('[msg listener] fired, count:', snap.size);
-            const msgs = [];
-            snap.forEach(c => msgs.push({ id: c.key, ...c.val() }));
-            setMessages(msgs.slice(-MAX_MSGS));
+        // Message listener — use onChildAdded so messages APPEND to array
+        // This is the correct Firebase pattern for chat; it never clears existing messages
+        const msgUnsub = onChildAdded(ref(rtdb, `chats/${roomId}/messages`), child => {
+            const msg = { id: child.key, ...child.val() };
+            console.log('[msg onChildAdded] new msg:', msg.type || 'chat', msg.text?.slice(0, 20));
+            setMessages(prev => {
+                // avoid duplicates
+                if (prev.some(m => m.id === msg.id)) return prev;
+                const next = [...prev, msg];
+                return next.length > MAX_MSGS ? next.slice(-MAX_MSGS) : next;
+            });
         });
 
         return () => {
@@ -483,14 +488,16 @@ export default function Chat1on1() {
                 )}
                 {messages.map((msg, i) => {
                     if (msg.type === 'system') return (
-                        <div key={msg.id || i} style={{ textAlign: 'center', padding: '8px 0', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', color: '#333' }}>— {msg.text} —</div>
+                        <div key={msg.id || i} style={{ textAlign: 'center', padding: '8px 0', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: '#7c6a9a' }}>
+                            ── {msg.text} ──
+                        </div>
                     );
                     const isMe = msg.senderId === myId;
                     return (
                         <div key={msg.id || i} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
-                            <div style={{ maxWidth: '80%', padding: '10px 14px', borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px', background: isMe ? 'var(--accent,#7c3aed)' : '#111', border: isMe ? 'none' : '1px solid #1f1f1f', color: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
-                                <p style={{ fontSize: 14, lineHeight: 1.5, wordBreak: 'break-word', margin: 0 }}>{msg.text}</p>
-                                <p style={{ fontSize: 9, marginTop: 4, opacity: 0.4, textAlign: 'right', fontFamily: 'monospace' }}>
+                            <div style={{ maxWidth: '80%', padding: '10px 14px', borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px', background: isMe ? 'var(--accent,#7c3aed)' : '#1a1a1a', border: isMe ? 'none' : '1px solid #2a2a2a', color: '#ffffff', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
+                                <p style={{ fontSize: 14, lineHeight: 1.5, wordBreak: 'break-word', margin: 0, color: '#fff' }}>{msg.text}</p>
+                                <p style={{ fontSize: 9, marginTop: 4, opacity: 0.5, textAlign: 'right', fontFamily: 'monospace', color: '#fff' }}>
                                     {msg.ts ? new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                                 </p>
                             </div>

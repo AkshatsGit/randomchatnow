@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously, onAuthStateChanged, connectAuthEmulator, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
-import { getDatabase, ref, set, get, update, onValue, onDisconnect, remove, push, connectDatabaseEmulator, serverTimestamp } from "firebase/database";
+import { getDatabase, ref, set, get, update, onValue, onChildAdded, onDisconnect, remove, push, connectDatabaseEmulator, serverTimestamp } from "firebase/database";
 import { getAnalytics, logEvent } from "firebase/analytics";
 
 // Use environment variables for Firebase, fallback to mock data for emulators
@@ -32,6 +32,6 @@ if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === "true") {
 export {
     app, auth, rtdb, analytics, googleProvider,
     signInAnonymously, signInWithPopup, signOut, onAuthStateChanged,
-    ref, set, get, update, onValue, onDisconnect, remove, push, serverTimestamp,
+    ref, set, get, update, onValue, onChildAdded, onDisconnect, remove, push, serverTimestamp,
     logEvent
 };
