@@ -19,20 +19,34 @@ export const generateRandomName = () => {
     return `${adj}${noun}`;
 };
 
-// Generate a random avatar URL using DiceBear
+// Generate a random avatar URL using DiceBear (adventurer-neutral for cute fun characters)
 export const generateAvatar = (seed) => {
-    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+    // We use 'adventurer' style for cute animated characters as requested
+    return `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}&scale=110&flip=true&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
 };
 
-// Fetch user IP address (approximate via public API)
-export const fetchIP = async () => {
+// Available avatar seeds for the slider
+export const AVATAR_SEEDS = [
+    'Buddy', 'Lucky', 'Mittens', 'Coco', 'Pepper',
+    'Shadow', 'Luna', 'Oliver', 'Milo', 'Leo',
+    'Tiger', 'Brave', 'Sparky', 'Jasper', 'Felix'
+];
+
+// Fetch user IP and Geography details
+export const fetchGeoDetails = async () => {
     try {
-        const response = await fetch('https://api.ipify.org?format=json');
+        const response = await fetch('https://ipapi.co/json/');
         const data = await response.json();
-        return data.ip;
+        return {
+            ip: data.ip,
+            city: data.city || 'Unknown',
+            country: data.country_name || 'Earth',
+            flag: `https://flagcdn.com/w40/${data.country_code?.toLowerCase()}.png`,
+            countryCode: data.country_code
+        };
     } catch (error) {
-        console.error("IP Fetch failed:", error);
-        return "unknown";
+        console.error("Geo Fetch failed:", error);
+        return { ip: 'unknown', city: 'Cloud', country: 'Digital', flag: '', countryCode: '' };
     }
 };
 

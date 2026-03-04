@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
     auth, signInAnonymously, onAuthStateChanged, signInWithPopup, googleProvider, signOut,
-    rtdb, ref, set, update, onValue, onDisconnect, serverTimestamp
+    rtdb, ref, set, update, onValue, onDisconnect, serverTimestamp, remove
 } from '../services/firebase';
-import { generateUserId, generateRandomName, generateAvatar, fetchIP } from '../utils/helpers';
+import { generateUserId, generateRandomName, generateAvatar, fetchGeoDetails } from '../utils/helpers';
 
 const AuthContext = createContext();
 
@@ -17,11 +17,10 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
-                // Initialize profile
                 let storedProfile = JSON.parse(localStorage.getItem('randomchat_profile'));
-                const userIp = await fetchIP();
+                const geo = await fetchGeoDetails();
 
-                if (!storedProfile || storedProfile.uid !== firebaseUser.uid) {
+                if (!storedProfile || (storedProfile.uid !== firebaseUser.uid && !firebaseUser.isAnonymous)) {
                     storedProfile = {
                         uid: firebaseUser.uid,
                         customId: storedProfile?.customId || generateUserId(),
@@ -30,16 +29,14 @@ export const AuthProvider = ({ children }) => {
                         gender: storedProfile?.gender || 'unknown',
                         isPremium: storedProfile?.isPremium || false,
                         isGoogle: !firebaseUser.isAnonymous,
-                        lastIp: userIp,
+                        geo: geo,
                         joinedAt: Date.now()
                     };
                     localStorage.setItem('randomchat_profile', JSON.stringify(storedProfile));
                 } else {
-                    // Update IP if changed
-                    storedProfile.lastIp = userIp;
+                    storedProfile.geo = geo;
                 }
 
-                // Presence Logic for Admin & Chat
                 const userStatusRef = ref(rtdb, `/status/${storedProfile.customId}`);
                 const activeUserRef = ref(rtdb, `/activeUsers/${storedProfile.customId}`);
 
@@ -49,22 +46,20 @@ export const AuthProvider = ({ children }) => {
                     name: storedProfile.displayName,
                     id: storedProfile.customId,
                     photo: storedProfile.photoURL,
-                    ip: userIp,
-                    isGoogle: storedProfile.isGoogle
+                    geo: geo,
+                    isGoogle: storedProfile.isGoogle,
+                    gender: storedProfile.gender
                 };
 
-                // On Disconnect
                 onDisconnect(userStatusRef).set({ state: 'offline', last_changed: serverTimestamp() });
                 onDisconnect(activeUserRef).remove();
 
-                // On Online
                 set(userStatusRef, statusData);
                 set(activeUserRef, statusData);
 
                 setUser(firebaseUser);
                 setProfile(storedProfile);
             } else {
-                // Auto login anonymously if not logged in
                 signInAnonymously(auth).catch(e => console.error("Anonymous auth failed", e));
                 setUser(null);
                 setProfile(null);
@@ -98,7 +93,6 @@ export const AuthProvider = ({ children }) => {
         setProfile(newProfile);
         localStorage.setItem('randomchat_profile', JSON.stringify(newProfile));
 
-        // Sync to active users if online
         if (profile?.customId) {
             update(ref(rtdb, `/activeUsers/${profile.customId}`), updates);
             update(ref(rtdb, `/status/${profile.customId}`), updates);
