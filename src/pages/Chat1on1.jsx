@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { rtdb, ref, push, set, onValue, update, remove, onDisconnect } from '../services/firebase';
+import { rtdb, ref, push, set, onValue, update, remove, onDisconnect, get } from '../services/firebase';
 import { Send, LogOut, Loader2, DollarSign, RefreshCw, MessageSquare } from 'lucide-react';
 import { processPayment } from '../utils/helpers';
 
@@ -35,6 +35,56 @@ const Chat1on1 = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
+    // Listen to queue aggressively when in finding state
+    useEffect(() => {
+        if (status === 'finding' && profile) {
+            const queueRef = ref(rtdb, 'queue/1on1');
+
+            const unsub = onValue(queueRef, (snapshot) => {
+                const queue = snapshot.val();
+                if (!queue) return;
+
+                const me = queue[profile.customId];
+
+                // 1. Did someone else already match me?
+                if (me && me.matchedWith && me.roomId) {
+                    setChatRoomId(me.roomId);
+                    setStatus('chatting');
+                    setupChatRoom(me.roomId);
+                    remove(ref(rtdb, `queue/1on1/${profile.customId}`));
+                    return;
+                }
+
+                // 2. If I'm not matched, actively look for an available partner
+                if (me) {
+                    for (const partnerId in queue) {
+                        const partner = queue[partnerId];
+
+                        // Check if they are valid, not me, and not matched
+                        if (partnerId !== profile.customId && !partner.matchedWith) {
+
+                            // Prevent Race Conditions: Only one user initiates room creation.
+                            // Tie-breaker via timestamp; if tied, use customId comparison.
+                            const iAmNewer = (me.timestamp > partner.timestamp) ||
+                                (me.timestamp === partner.timestamp && profile.customId > partnerId);
+
+                            if (iAmNewer) {
+                                const newRoomId = `room_${Math.random().toString(36).substr(2, 9)}_${Date.now()}`;
+
+                                // Perform the match simultaneously!
+                                update(ref(rtdb, `queue/1on1/${profile.customId}`), { matchedWith: partnerId, roomId: newRoomId });
+                                update(ref(rtdb, `queue/1on1/${partnerId}`), { matchedWith: profile.customId, roomId: newRoomId });
+                                break;
+                            }
+                        }
+                    }
+                }
+            });
+
+            return () => unsub();
+        }
+    }, [status, profile]);
+
     const joinQueue = (premium = false) => {
         if (!profile) return;
         setStatus('finding');
@@ -51,40 +101,6 @@ const Chat1on1 = () => {
         // If disconnect while queuing, remove from queue
         onDisconnect(myQueueRef).remove();
         set(myQueueRef, queueData);
-
-        // Listen for match
-        const unsub = onValue(myQueueRef, (snapshot) => {
-            const data = snapshot.val();
-            if (data && data.matchedWith && data.roomId) {
-                // Matched!
-                setChatRoomId(data.roomId);
-                setStatus('chatting');
-                setupChatRoom(data.roomId);
-                // Clean up queue
-                remove(myQueueRef);
-                unsub(); // unsubscribe since we are matched
-            }
-        });
-
-        // Scan the queue to see if there is a waiting partner
-        get(ref(rtdb, 'queue/1on1')).then((snapshot) => {
-            const queue = snapshot.val();
-            if (queue) {
-                // Find someone who is not me, and not already matched
-                for (const potentialPartnerId in queue) {
-                    if (potentialPartnerId !== profile.customId && !queue[potentialPartnerId].matchedWith) {
-                        // Create a unique room ID
-                        const newRoomId = `room_${Math.random().toString(36).substr(2, 9)}_${Date.now()}`;
-
-                        // Trigger the match for both clients!
-                        update(ref(rtdb, `queue/1on1/${profile.customId}`), { matchedWith: potentialPartnerId, roomId: newRoomId });
-                        update(ref(rtdb, `queue/1on1/${potentialPartnerId}`), { matchedWith: profile.customId, roomId: newRoomId });
-
-                        break;
-                    }
-                }
-            }
-        });
     };
 
     const handlePremiumJoin = async () => {
