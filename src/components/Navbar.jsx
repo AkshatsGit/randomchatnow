@@ -1,102 +1,164 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-    Home, MessageSquare, Users, User, LogOut,
-    RefreshCw, Sparkles, LogIn, HelpCircle
+    Home, MessageSquare, Users, LogOut,
+    RefreshCw, LogIn, Sun, Zap
 } from 'lucide-react';
+
+// ── Theme persistence ──────────────────────────────────────────────────────
+const getTheme = () => localStorage.getItem('rch_theme') || 'dark';
+const applyTheme = (t) => {
+    document.documentElement.setAttribute('data-theme', t);
+    localStorage.setItem('rch_theme', t);
+};
+
+// Apply on first load (before React hydrates)
+applyTheme(getTheme());
 
 const Navbar = () => {
     const { profile, logout, loginWithGoogle, randomizeName } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
+    const [theme, setTheme] = useState(getTheme);
 
-    // Don't show on admin or in active chat? (User wants it globally but usually not in chat)
-    const isChatting = location.pathname === '/chat';
+    const toggleTheme = () => {
+        const next = theme === 'dark' ? 'neon' : 'dark';
+        setTheme(next);
+        applyTheme(next);
+    };
+
+    const isNeon = theme === 'neon';
+    const accent = isNeon ? '#ff6b00' : '#7c3aed';
+    const activeBg = isNeon ? '#ff6b00' : '#7c3aed';
+    const navBg = isNeon ? 'rgba(0,0,0,0.92)' : 'rgba(5,5,5,0.85)';
+    const border = isNeon ? '#2a1800' : 'rgba(255,255,255,0.06)';
 
     return (
-        <nav className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-50 transition-all duration-500 ${isChatting ? 'opacity-20 hover:opacity-100 translate-y-12 hover:translate-y-0 scale-90 hover:scale-100' : 'opacity-100'}`}>
-            <div className="bg-gray-950/80 backdrop-blur-3xl border border-gray-800/80 p-2 md:p-3 rounded-[2.5rem] shadow-2xl flex items-center gap-2 md:gap-4 shadow-purple-900/20 ring-1 ring-white/5">
+        <nav style={{
+            position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 50, display: 'flex', alignItems: 'stretch',
+            background: navBg,
+            border: `1px solid ${border}`,
+            borderRadius: 28,
+            boxShadow: isNeon
+                ? '0 0 40px rgba(255,107,0,0.2), 0 20px 60px rgba(0,0,0,0.8)'
+                : '0 20px 60px rgba(0,0,0,0.6)',
+            padding: '6px 8px',
+            gap: 4,
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            maxWidth: 'calc(100vw - 24px)',
+        }}>
 
-                {/* Profile Peek */}
-                <div className="flex items-center gap-3 pr-4 border-r border-gray-800 ml-2 py-1">
-                    <div className="relative">
-                        <img
-                            src={profile?.photoURL}
-                            className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-gray-900 border border-gray-800 shadow-inner group-hover:scale-110 transition-transform"
-                            alt="pfp"
-                        />
-                        <button
-                            onClick={randomizeName}
-                            className="absolute -bottom-1 -right-1 p-1.5 bg-purple-600 rounded-lg text-white shadow-lg hover:scale-110 active:rotate-180 transition-all"
-                        >
-                            <RefreshCw className="w-3 h-3" />
-                        </button>
-                    </div>
-                    <div className="hidden sm:block">
-                        <div className="text-xs font-black text-white leading-none mb-1 flex items-center gap-1">
-                            {profile?.displayName}
-                            {profile?.gender === 'female' ? <span className="text-pink-500">♀</span> : profile?.gender === 'male' ? <span className="text-blue-500">♂</span> : null}
-                        </div>
-                        <div className="text-[9px] font-mono text-gray-500 font-bold tracking-tighter uppercase">UC-{profile?.customId}</div>
-                    </div>
+            {/* Profile */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 10px 4px 6px', borderRight: `1px solid ${border}`, marginRight: 4 }}>
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                    <img
+                        src={profile?.photoURL}
+                        style={{ width: 36, height: 36, borderRadius: 12, border: `2px solid ${border}`, background: '#111', display: 'block' }}
+                        alt=""
+                    />
+                    <button
+                        onClick={randomizeName}
+                        title="New name & avatar"
+                        style={{
+                            position: 'absolute', bottom: -4, right: -4,
+                            width: 18, height: 18, borderRadius: 6,
+                            background: accent, border: 'none', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0
+                        }}
+                    >
+                        <RefreshCw style={{ width: 10, height: 10, color: '#fff' }} />
+                    </button>
                 </div>
+                <div style={{ display: 'none', flexDirection: 'column', gap: 1 }} className="sm-show">
+                    <span style={{ fontSize: 11, fontWeight: 900, color: '#fff', lineHeight: 1, maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {profile?.displayName}
+                        {profile?.gender === 'female' && <span style={{ color: '#f472b6', marginLeft: 3 }}>♀</span>}
+                        {profile?.gender === 'male' && <span style={{ color: '#60a5fa', marginLeft: 3 }}>♂</span>}
+                    </span>
+                    <span style={{ fontSize: 8, fontWeight: 700, color: isNeon ? '#a06020' : '#555', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                        UC-{profile?.customId}
+                    </span>
+                </div>
+            </div>
 
-                {/* Nav Links */}
-                <div className="flex items-center gap-1 md:gap-2">
-                    <NavButton
-                        active={location.pathname === '/'}
-                        onClick={() => navigate('/')}
-                        icon={Home}
-                        label="Home"
-                    />
-                    <NavButton
-                        active={location.pathname === '/chat'}
-                        onClick={() => navigate('/chat')}
-                        icon={MessageSquare}
-                        label="1v1"
-                    />
-                    <NavButton
-                        active={location.pathname === '/groups'}
-                        onClick={() => navigate('/groups')}
-                        icon={Users}
-                        label="Hubs"
-                    />
-                </div>
+            {/* Nav links */}
+            {[
+                { path: '/', Icon: Home, label: 'Home' },
+                { path: '/chat', Icon: MessageSquare, label: '1v1' },
+                { path: '/groups', Icon: Users, label: 'Hubs' },
+            ].map(({ path, Icon, label }) => {
+                const active = location.pathname === path;
+                return (
+                    <button
+                        key={path}
+                        onClick={() => navigate(path)}
+                        style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                            gap: 3, padding: '8px 12px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                            background: active ? activeBg : 'transparent',
+                            color: active ? '#fff' : (isNeon ? '#a06020' : '#666'),
+                            boxShadow: active && isNeon ? `0 0 14px rgba(255,107,0,0.4)` : active ? `0 0 14px rgba(124,58,237,0.35)` : 'none',
+                            transition: 'all 0.2s',
+                            minWidth: 48,
+                        }}
+                    >
+                        <Icon style={{ width: 16, height: 16 }} />
+                        <span style={{ fontSize: 8, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</span>
+                    </button>
+                );
+            })}
 
-                {/* Auth Actions */}
-                <div className="pl-4 border-l border-gray-800 flex items-center gap-2 mr-2">
-                    {profile?.isGoogle ? (
-                        <button
-                            onClick={logout}
-                            className="p-3 md:p-4 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-2xl transition-all shadow-inner border border-red-500/20"
-                            title="Sign Out"
-                        >
-                            <LogOut className="w-5 h-5" />
-                        </button>
-                    ) : (
-                        <button
-                            onClick={loginWithGoogle}
-                            className="flex items-center gap-2 px-4 py-3 md:px-5 md:py-4 bg-white text-black hover:bg-gray-200 rounded-2xl transition-all shadow-xl font-bold text-xs"
-                        >
-                            <LogIn className="w-4 h-4" />
-                            <span className="hidden sm:inline">GOOGLE</span>
-                        </button>
-                    )}
-                </div>
+            {/* Theme toggle */}
+            <button
+                onClick={toggleTheme}
+                title={isNeon ? 'Switch to Dark' : 'Switch to Neon'}
+                style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: 40, height: 40, borderRadius: 16, border: `1px solid ${border}`,
+                    background: 'transparent', cursor: 'pointer',
+                    color: isNeon ? '#ff6b00' : '#7c3aed',
+                    transition: 'all 0.2s', flexShrink: 0,
+                    boxShadow: isNeon ? '0 0 10px rgba(255,107,0,0.2)' : 'none',
+                }}
+            >
+                {isNeon ? <Sun style={{ width: 16, height: 16 }} /> : <Zap style={{ width: 16, height: 16 }} />}
+            </button>
+
+            {/* Auth */}
+            <div style={{ paddingLeft: 4, borderLeft: `1px solid ${border}`, marginLeft: 4, display: 'flex', alignItems: 'center' }}>
+                {profile?.isGoogle ? (
+                    <button
+                        onClick={logout}
+                        title="Sign out"
+                        style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            width: 40, height: 40, borderRadius: 16, border: '1px solid rgba(239,68,68,0.2)',
+                            background: 'rgba(239,68,68,0.08)', cursor: 'pointer', color: '#ef4444',
+                        }}
+                    >
+                        <LogOut style={{ width: 16, height: 16 }} />
+                    </button>
+                ) : (
+                    <button
+                        onClick={loginWithGoogle}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            padding: '8px 14px', borderRadius: 16, border: 'none',
+                            background: '#fff', color: '#000', cursor: 'pointer',
+                            fontWeight: 900, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase',
+                            flexShrink: 0,
+                        }}
+                    >
+                        <LogIn style={{ width: 13, height: 13 }} />
+                        <span className="sm-show-inline">Google</span>
+                    </button>
+                )}
             </div>
         </nav>
     );
 };
-
-const NavButton = ({ active, onClick, icon: Icon, label }) => (
-    <button
-        onClick={onClick}
-        className={`flex flex-col items-center gap-1 px-3 py-2 md:px-5 md:py-3 rounded-2xl transition-all group ${active ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/40' : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'}`}
-    >
-        <Icon className={`w-5 h-5 md:w-6 md:h-6 ${active ? 'animate-pulse' : 'group-hover:scale-110'}`} />
-        <span className="text-[10px] font-black uppercase tracking-widest">{label}</span>
-    </button>
-);
 
 export default Navbar;

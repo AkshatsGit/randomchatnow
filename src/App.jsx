@@ -6,14 +6,13 @@ import AdminDashboard from './pages/AdminDashboard';
 import Navbar from './components/Navbar';
 import { AuthProvider } from './context/AuthContext';
 
-// Helper to only show Navbar on certain routes
 const Layout = ({ children }) => {
     const location = useLocation();
     const isAdmin = location.pathname.startsWith('/adminxakshat');
     const isChat = location.pathname === '/chat';
 
     return (
-        <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-purple-500/30">
+        <div style={{ minHeight: '100vh', background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
             {children}
             {!isAdmin && !isChat && <Navbar />}
         </div>
