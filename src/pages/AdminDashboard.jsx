@@ -57,7 +57,7 @@ const AdminDashboard = () => {
 
     const handleLogin = (e) => {
         e.preventDefault();
-        if (username === 'akshat' && password === '123') {
+        if (username.trim().toLowerCase() === 'akshat' && password.trim() === '123') {
             setIsLoggedIn(true);
         } else {
             alert('Invalid Admin Credentials');
@@ -96,10 +96,12 @@ const AdminDashboard = () => {
         );
     }
 
-    const filteredUsers = activeUsers.filter(u =>
-        u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.id.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredUsers = activeUsers.filter(u => {
+        const name = u.name || '';
+        const id = u.id || '';
+        const search = searchQuery.toLowerCase();
+        return name.toLowerCase().includes(search) || id.toLowerCase().includes(search);
+    });
 
     return (
         <div className="min-h-screen bg-[#050505] text-gray-100 p-8 custom-scrollbar">
