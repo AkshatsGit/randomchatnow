@@ -34,8 +34,10 @@ const Navbar = () => {
     const navBg = isNeon ? 'rgba(0,0,0,0.92)' : 'rgba(5,5,5,0.85)';
     const border = isNeon ? '#2a1800' : 'rgba(255,255,255,0.06)';
 
+    const isChatRoutes = location.pathname === '/chat' || location.pathname === '/groups';
+
     return (
-        <nav style={{
+        <nav className={isChatRoutes ? 'hide-on-mobile' : ''} style={{
             position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)',
             zIndex: 50, display: 'flex', alignItems: 'stretch',
             background: navBg,

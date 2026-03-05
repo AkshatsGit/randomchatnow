@@ -204,7 +204,7 @@ const GroupChat = () => {
     }
 
     return (
-        <div className="flex flex-col h-screen bg-[#050505] animate-in slide-in-from-right-4 duration-500">
+        <div className="flex flex-col bg-[#050505] animate-in slide-in-from-right-4 duration-500 mobile-no-pt" style={{ position: 'fixed', inset: 0, boxSizing: 'border-box', paddingTop: 80, overflow: 'hidden' }}>
             <header className="flex items-center justify-between p-6 bg-gray-900/40 backdrop-blur-xl border-b border-gray-800/50">
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/20">
@@ -262,8 +262,10 @@ const GroupChat = () => {
                         }}
                         onKeyDown={e => {
                             if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                sendMessage();
+                                if (window.innerWidth >= 768) {
+                                    e.preventDefault();
+                                    sendMessage(e);
+                                }
                             }
                         }}
                         placeholder={`Broadcast to ${currentRoom.name}...`}
