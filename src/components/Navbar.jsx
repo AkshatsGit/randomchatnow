@@ -36,7 +36,7 @@ const Navbar = () => {
 
     return (
         <nav style={{
-            position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+            position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)',
             zIndex: 50, display: 'flex', alignItems: 'stretch',
             background: navBg,
             border: `1px solid ${border}`,

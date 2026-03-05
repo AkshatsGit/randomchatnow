@@ -13,8 +13,8 @@ const Layout = ({ children }) => {
 
     return (
         <div style={{ minHeight: '100vh', background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+            {!isAdmin && <Navbar />}
             {children}
-            {!isAdmin && !isChat && <Navbar />}
         </div>
     );
 };

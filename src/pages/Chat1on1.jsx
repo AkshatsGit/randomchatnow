@@ -419,7 +419,7 @@ export default function Chat1on1() {
     const myUid = chatState?.uid || profile?.customId;
 
     return (
-        <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-base,#050505)' }}>
+        <div style={{ height: '100dvh', boxSizing: 'border-box', paddingTop: 80, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-base,#050505)' }}>
 
             {/* Header */}
             <div style={{ flexShrink: 0, borderBottom: '1px solid #1a1a1a', background: 'rgba(5,5,5,0.97)', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>

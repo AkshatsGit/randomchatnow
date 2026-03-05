@@ -16,9 +16,25 @@ const Home = () => {
         updateProfile({ gender: g });
     };
 
+    const [isEditingName, setIsEditingName] = React.useState(false);
+    const [editName, setEditName] = React.useState('');
+
+    React.useEffect(() => {
+        if (!isEditingName) setEditName(profile?.displayName || '');
+    }, [profile?.displayName, isEditingName]);
+
     const handleAvatarSelect = (seed) => {
         const url = generateAvatar(seed);
         updateProfile({ photoURL: url });
+    };
+
+    const handleNameSubmit = () => {
+        setIsEditingName(false);
+        if (editName.trim() && editName !== profile?.displayName) {
+            updateProfile({ displayName: editName.trim() });
+        } else {
+            setEditName(profile?.displayName || '');
+        }
     };
 
     return (
@@ -78,9 +94,23 @@ const Home = () => {
                         <div className="flex-1 space-y-8 w-full">
                             <div className="text-center md:text-left space-y-2">
                                 <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest flex items-center justify-center md:justify-start gap-2">
-                                    <Sparkles className="w-4 h-4 text-purple-400" /> Your Random ID
+                                    <Sparkles className="w-4 h-4 text-purple-400" /> Your Username
                                 </h3>
-                                <div className="text-4xl font-black">{profile?.displayName}</div>
+                                <div className="group relative w-full md:w-auto">
+                                    <input
+                                        type="text"
+                                        value={isEditingName ? editName : (profile?.displayName || '')}
+                                        onFocus={() => setIsEditingName(true)}
+                                        onChange={(e) => setEditName(e.target.value)}
+                                        onBlur={handleNameSubmit}
+                                        onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+                                        className="w-full text-4xl font-black bg-transparent outline-none border-b-2 border-transparent focus:border-purple-500 text-center md:text-left transition-all px-0 py-1"
+                                        placeholder="Anonymous"
+                                        maxLength={20}
+                                        spellCheck={false}
+                                    />
+                                    {!isEditingName && <span className="absolute top-1/2 -translate-y-1/2 right-2 text-xs font-bold text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none md:hidden lg:block">Click to edit</span>}
+                                </div>
                                 <div className="text-xs font-mono text-purple-500/60 uppercase">UC-{profile?.customId}</div>
                             </div>
 
