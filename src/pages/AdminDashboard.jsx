@@ -4,7 +4,7 @@ import { rtdb, ref, onValue, get } from '../services/firebase';
 import {
     Users, MessageSquare, Activity, ShieldCheck,
     ArrowLeft, Search, Globe, MapPin, Flag,
-    TrendingUp, Zap, Clock, User
+    TrendingUp, Zap, Clock, User, Crown, Mail
 } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -23,6 +23,10 @@ const AdminDashboard = () => {
 
     const [activeUsers, setActiveUsers] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
+    const [hubs, setHubs] = useState({});
+    const [hubMessages, setHubMessages] = useState({});
+    const [oneOnOneChats, setOneOnOneChats] = useState({});
+    const [viewMode, setViewMode] = useState('hubs'); // 'hubs' or '1v1'
 
     useEffect(() => {
         if (!isLoggedIn) return;
@@ -46,12 +50,28 @@ const AdminDashboard = () => {
         // Listen for rooms
         const roomsRef = ref(rtdb, 'groups');
         const unsubRooms = onValue(roomsRef, (snapshot) => {
-            setStats(prev => ({ ...prev, chatRooms: snapshot.exists() ? Object.keys(snapshot.val()).length : 0 }));
+            const data = snapshot.val() || {};
+            setHubs(data);
+            setStats(prev => ({ ...prev, chatRooms: Object.keys(data).length }));
+        });
+
+        // Listen for Hub Messages
+        const hubMsgsRef = ref(rtdb, 'group_messages');
+        const unsubHubMsgs = onValue(hubMsgsRef, (snapshot) => {
+            setHubMessages(snapshot.val() || {});
+        });
+
+        // Listen for 1v1 Chats
+        const oneOnOneRef = ref(rtdb, 'chats');
+        const unsubOneOnOne = onValue(oneOnOneRef, (snapshot) => {
+            setOneOnOneChats(snapshot.val() || {});
         });
 
         return () => {
             unsubUsers();
             unsubRooms();
+            unsubHubMsgs();
+            unsubOneOnOne();
         };
     }, [isLoggedIn]);
 
@@ -161,6 +181,7 @@ const AdminDashboard = () => {
                                 <th className="px-8 py-6">User Identity</th>
                                 <th className="px-8 py-6">IP Details</th>
                                 <th className="px-8 py-6">Geo Location</th>
+                                <th className="px-8 py-6">Auth / Contact</th>
                                 <th className="px-8 py-6">Carrier / Gender</th>
                                 <th className="px-8 py-6">State</th>
                                 <th className="px-8 py-6 text-right">Actions</th>
@@ -191,10 +212,24 @@ const AdminDashboard = () => {
                                         </div>
                                     </td>
                                     <td className="px-8 py-6">
-                                        <div className="flex items-center gap-3">
-                                            <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border ${u.isGoogle ? 'bg-white text-black border-white' : 'bg-gray-800 text-gray-400 border-gray-700'}`}>
-                                                {u.isGoogle ? 'Google' : 'Anonymous'}
+                                        <div className="flex flex-col gap-1.5">
+                                            <span className={`w-fit flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border ${u.isGoogle ? 'bg-white text-black border-white' : 'bg-gray-800 text-gray-400 border-gray-700'}`}>
+                                                {u.isGoogle ? 'Google' : 'Anon'}
                                             </span>
+                                            {u.email && (
+                                                <span className="flex items-center gap-1.5 text-[10px] text-gray-400 font-medium">
+                                                    <Mail className="w-3 h-3" /> {u.email}
+                                                </span>
+                                            )}
+                                            {u.isPremium && (
+                                                <span className="w-fit flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">
+                                                    <Crown className="w-3 h-3" /> Premium
+                                                </span>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="px-8 py-6">
+                                        <div className="flex items-center gap-3">
                                             {u.gender && (
                                                 <span className={`p-1.5 rounded-lg border ${u.gender === 'female' ? 'border-pink-500/30 text-pink-500' : u.gender === 'male' ? 'border-blue-500/30 text-blue-500' : 'border-gray-700 text-gray-500'}`}>
                                                     <User className="w-3 h-3" />
@@ -218,15 +253,65 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
-            {/* Performance Analytics Placeholder */}
-            <div className="bg-gray-900 border border-gray-800 rounded-[2.5rem] p-10 h-80 shadow-2xl relative overflow-hidden flex flex-col items-center justify-center text-center gap-4">
-                <div className="absolute top-0 left-0 w-full h-full opacity-5 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
-                <Activity className="w-16 h-16 text-gray-800 animate-pulse" />
-                <h3 className="text-xs font-black uppercase tracking-[0.4em] text-gray-700">Performance Analytics (Last 7 Days)</h3>
-                <div className="w-full max-w-2xl flex items-end justify-between gap-2 h-32">
-                    {[3, 5, 4, 8, 6, 9, 7].map((h, i) => (
-                        <div key={i} className="flex-1 bg-gradient-to-t from-purple-600 to-indigo-600 rounded-t-xl transition-all hover:scale-x-110" style={{ height: `${h * 10}%` }} />
-                    ))}
+            {/* Real-time Chat Viewer */}
+            <div className="bg-gray-900 border border-gray-800 rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col h-[600px]">
+                <div className="p-6 border-b border-gray-800 flex items-center justify-between bg-gray-950/50">
+                    <h2 className="text-xl font-black flex items-center gap-3"><MessageSquare className="text-purple-500" /> Matrix Comms Log</h2>
+                    <div className="flex bg-gray-900 border border-gray-800 rounded-xl p-1">
+                        <button onClick={() => setViewMode('hubs')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${viewMode === 'hubs' ? 'bg-purple-600 text-white' : 'text-gray-500 hover:text-white'}`}>Hub Activity</button>
+                        <button onClick={() => setViewMode('1v1')} className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${viewMode === '1v1' ? 'bg-purple-600 text-white' : 'text-gray-500 hover:text-white'}`}>1v1 Wiretaps</button>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 bg-[#050505] custom-scrollbar grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
+                    {viewMode === 'hubs' && Object.entries(hubMessages).map(([roomId, msgsObj]) => {
+                        const roomInfo = hubs[roomId] || { name: 'Unknown Hub' };
+                        const msgs = Object.values(msgsObj || {}).sort((a, b) => a.timestamp - b.timestamp);
+                        if (!msgs.length) return null;
+                        return (
+                            <div key={roomId} className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden flex flex-col h-96">
+                                <div className="p-4 bg-gray-950 border-b border-gray-800 font-bold text-sm tracking-widest text-blue-400 uppercase flex items-center justify-between shrink-0">
+                                    <span>{roomInfo.name}</span>
+                                    <span className="text-[10px] text-gray-600">{msgs.length} msgs</span>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                                    {msgs.map((m, i) => (
+                                        <div key={i} className="text-xs bg-black/40 p-3 rounded-lg border border-gray-800/50">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="font-bold text-purple-400">{m.senderName}</span>
+                                                <span className="text-[8px] text-gray-600 font-mono tracking-widest">{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                            </div>
+                                            <p className="text-gray-300 font-medium whitespace-pre-wrap break-words">{m.text}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })}
+
+                    {viewMode === '1v1' && Object.entries(oneOnOneChats).map(([chatId, chatObj]) => {
+                        const msgs = Object.values(chatObj?.messages || {}).sort((a, b) => a.ts - b.ts);
+                        if (!msgs.length) return null;
+                        return (
+                            <div key={chatId} className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden flex flex-col h-96">
+                                <div className="p-4 bg-gray-950 border-b border-gray-800 font-bold text-[10px] font-mono text-gray-500 uppercase flex flex-col gap-1 shrink-0">
+                                    <span className="text-pink-500 tracking-widest">PRIVATE ENCLAVE</span>
+                                    <span className="text-gray-700 truncate">{chatId}</span>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                                    {msgs.map((m, i) => (
+                                        <div key={i} className="text-xs bg-black/40 p-3 rounded-lg border border-gray-800/50">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="font-bold text-green-400">{m.senderName}</span>
+                                                <span className="text-[8px] text-gray-600 font-mono tracking-widest">{new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                            </div>
+                                            <p className="text-gray-300 font-medium whitespace-pre-wrap break-words">{m.deleted ? <span className="italic opacity-50 text-red-400">🗑 Deleted logically</span> : m.text}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         </div>

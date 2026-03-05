@@ -56,7 +56,9 @@ export const AuthProvider = ({ children }) => {
             photo: p.photoURL,
             geo: p.geo || {},
             isGoogle: p.isGoogle,
-            gender: p.gender
+            gender: p.gender,
+            email: p.email || null,
+            isPremium: p.isPremium || false
         };
         onDisconnect(statusRef).set({ state: 'offline', last_changed: serverTimestamp() });
         onDisconnect(activeRef).remove();
@@ -130,6 +132,7 @@ export const AuthProvider = ({ children }) => {
                         gender: stored?.gender || 'unknown',
                         isPremium: stored?.isPremium || false,
                         isGoogle: true,
+                        email: firebaseUser.email || null,
                         geo,
                         joinedAt: Date.now()
                     };

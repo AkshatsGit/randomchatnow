@@ -223,6 +223,15 @@
     }
 }
 
+@media (min-width: 769px) {
+    .desktop-chat-wrapper {
+        position: relative !important;
+        inset: auto !important;
+        height: 100dvh !important;
+        padding-top: 0 !important;
+    }
+}
+
 @media (min-width: 480px) {
     .sm-show {
         display: flex !important;
