@@ -118,21 +118,26 @@ const GroupChat = () => {
     };
 
     const sendMessage = (e) => {
-        e.preventDefault();
-        if (!inputText.trim() || !currentRoom) return;
+        if (e && e.preventDefault) e.preventDefault();
+        const textToSync = inputText.trim();
+        if (!textToSync || !currentRoom) return;
 
         const mRef = ref(rtdb, `group_messages/${currentRoom.id}`);
         push(mRef, {
             senderId: profile.customId,
             senderName: profile.displayName,
             senderPhoto: profile.photoURL,
-            text: inputText,
+            text: textToSync,
             timestamp: Date.now()
         });
 
         // Update room activity
         update(ref(rtdb, `groups/${currentRoom.id}`), { updatedAt: Date.now() });
         setInputText('');
+        setTimeout(() => {
+            const ta = document.getElementById('groupchat-textarea');
+            if (ta) ta.style.height = 'auto';
+        }, 0);
     };
 
     if (!currentRoom) {
@@ -228,7 +233,7 @@ const GroupChat = () => {
                             {!isMe && <img src={msg.senderPhoto} className="w-8 h-8 rounded-lg mt-1 mr-3 opacity-60" />}
                             <div className={`max-w-[75%] rounded-2xl px-5 py-3 shadow-lg ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-gray-900 text-gray-300 border border-gray-800 rounded-tl-none'}`}>
                                 {!isMe && <div className="text-[10px] font-black mb-1 text-blue-400 uppercase tracking-widest">{msg.senderName}</div>}
-                                <p className="text-sm font-medium leading-relaxed">{msg.text}</p>
+                                <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap break-words">{msg.text}</p>
                                 <div className="text-[8px] mt-1 opacity-40 font-bold text-right italic uppercase">
                                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </div>
@@ -246,16 +251,28 @@ const GroupChat = () => {
             </div>
 
             <form onSubmit={sendMessage} className="p-6 bg-gray-950 border-t border-gray-900">
-                <div className="max-w-4xl mx-auto flex gap-3">
-                    <input
-                        type="text"
+                <div className="max-w-4xl mx-auto flex gap-3 items-end">
+                    <textarea
+                        id="groupchat-textarea"
                         value={inputText}
-                        onChange={e => setInputText(e.target.value)}
+                        onChange={e => {
+                            setInputText(e.target.value);
+                            e.target.style.height = 'auto';
+                            e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
+                        }}
+                        onKeyDown={e => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                sendMessage();
+                            }
+                        }}
                         placeholder={`Broadcast to ${currentRoom.name}...`}
-                        className="flex-1 bg-gray-900 border border-gray-800 px-6 py-4 rounded-2xl outline-none focus:border-blue-500 transition-all font-medium shadow-inner"
+                        className="flex-1 bg-gray-900 border border-gray-800 px-6 py-4 rounded-2xl outline-none focus:border-blue-500 transition-all font-medium shadow-inner resize-none overflow-y-auto"
+                        style={{ minHeight: '56px', maxHeight: '150px', lineHeight: '1.4' }}
+                        rows="1"
                     />
-                    <button type="submit" disabled={!inputText.trim()} className="p-5 bg-blue-600 hover:bg-blue-500 rounded-2xl transition-all shadow-lg active:scale-95 disabled:grayscale">
-                        <Send className="w-6 h-6" />
+                    <button type="submit" disabled={!inputText.trim()} className="w-14 h-14 flex items-center justify-center shrink-0 bg-blue-600 hover:bg-blue-500 rounded-2xl transition-all shadow-lg active:scale-95 disabled:grayscale">
+                        <Send className="w-6 h-6 ml-1" />
                     </button>
                 </div>
             </form>

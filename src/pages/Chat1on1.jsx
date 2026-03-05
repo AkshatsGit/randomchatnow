@@ -299,7 +299,7 @@ export default function Chat1on1() {
 
     // ─── SEND MESSAGE ─────────────────────────────────────────────────────────────
     const sendMessage = (e) => {
-        e.preventDefault();
+        if (e && e.preventDefault) e.preventDefault();
         const rid = roomIdRef.current;
         const uid = chatState?.uid || profile?.customId;
         const text = inputText.trim();
@@ -310,6 +310,10 @@ export default function Chat1on1() {
             text, ts: Date.now()
         }).catch(err => console.error('Send failed:', err));
         setInputText('');
+        setTimeout(() => {
+            const ta = document.getElementById('chat1on1-textarea');
+            if (ta) ta.style.height = 'auto';
+        }, 0);
     };
 
     // ─── DELETE MESSAGE ──────────────────────────────────────────────────────────
@@ -483,9 +487,10 @@ export default function Chat1on1() {
                                     borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
                                     background: isMe ? 'var(--accent,#7c3aed)' : '#1a1a1a',
                                     border: isMe ? 'none' : '1px solid #2a2a2a',
-                                    boxShadow: '0 2px 8px rgba(0,0,0,0.35)'
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+                                    display: 'flex', flexDirection: 'column'
                                 }}>
-                                    <p style={{ fontSize: 14, lineHeight: 1.5, wordBreak: 'break-word', margin: 0, color: '#ffffff' }}>{msg.text}</p>
+                                    <p style={{ fontSize: 14, lineHeight: 1.5, wordBreak: 'break-word', whiteSpace: 'pre-wrap', margin: 0, color: '#ffffff' }}>{msg.text}</p>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, gap: 8 }}>
                                         <p style={{ fontSize: 9, opacity: 0.45, fontFamily: 'monospace', color: '#fff', margin: 0 }}>
                                             {msg.ts ? new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
@@ -512,16 +517,33 @@ export default function Chat1on1() {
 
             {/* Input */}
             <div style={{ flexShrink: 0, padding: '10px 12px', paddingBottom: 'max(10px,env(safe-area-inset-bottom,10px))', background: '#0a0a0a', borderTop: '1px solid #111' }}>
-                <form onSubmit={sendMessage} style={{ display: 'flex', gap: 8, maxWidth: 720, margin: '0 auto' }}>
-                    <input type="text" value={inputText} onChange={e => setInputText(e.target.value)}
-                        placeholder="Type a message..." autoComplete="off" autoCorrect="off" spellCheck={false} maxLength={500}
-                        style={{ flex: 1, minWidth: 0, background: '#111', border: '1px solid #222', borderRadius: 18, padding: '12px 16px', fontSize: 14, color: '#fff', outline: 'none', fontFamily: 'inherit' }}
+                <form onSubmit={sendMessage} style={{ display: 'flex', gap: 8, maxWidth: 720, margin: '0 auto', alignItems: 'flex-end' }}>
+                    <textarea
+                        id="chat1on1-textarea"
+                        value={inputText}
+                        onChange={e => {
+                            setInputText(e.target.value);
+                            e.target.style.height = 'auto';
+                            e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+                        }}
+                        onKeyDown={e => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                sendMessage();
+                            }
+                        }}
+                        placeholder="Message..." autoComplete="off" autoCorrect="off" spellCheck={false} maxLength={500} rows={1}
+                        style={{
+                            flex: 1, minWidth: 0, background: '#111', border: '1px solid #222', borderRadius: 20,
+                            padding: '12px 16px', fontSize: 14, color: '#fff', outline: 'none', fontFamily: 'inherit',
+                            resize: 'none', overflowY: 'auto', minHeight: 45, maxHeight: 120, lineHeight: 1.4
+                        }}
                         onFocus={e => e.target.style.borderColor = 'var(--accent,#7c3aed)'}
                         onBlur={e => e.target.style.borderColor = '#222'}
                     />
                     <button type="submit" disabled={!inputText.trim()}
-                        style={{ padding: '12px 16px', background: 'var(--accent,#7c3aed)', border: 'none', borderRadius: 18, cursor: 'pointer', color: '#fff', flexShrink: 0, opacity: inputText.trim() ? 1 : 0.4, display: 'flex', alignItems: 'center' }}>
-                        <Send style={{ width: 18, height: 18 }} />
+                        style={{ height: 45, width: 45, padding: 0, justifyContent: 'center', background: 'var(--accent,#7c3aed)', border: 'none', borderRadius: '50%', cursor: 'pointer', color: '#fff', flexShrink: 0, opacity: inputText.trim() ? 1 : 0.4, display: 'flex', alignItems: 'center' }}>
+                        <Send style={{ width: 18, height: 18, marginLeft: 2 }} />
                     </button>
                 </form>
             </div>
